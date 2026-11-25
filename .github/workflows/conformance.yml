@@ -75,6 +75,7 @@ jobs:
           mkdir -p target/shared
           jolt -Scp packs/shared packs/shared/worker.clj target/vector/shared.edn jolt-release "$(jolt --version)" target/shared/jolt-release.edn
           PILOT_CLOJURE_JAR="$jar" bash pilot/compare.sh
+          PILOT_CLOJURE_JAR="$jar" bash packs/native-regions/run.sh "$RUNNER_TEMP/native-regions"
           jolt -Scp packs/clojure-1.13 packs/clojure-1.13/siblings.clj "$GITHUB_RUN_ID" --probe
           bash packs/vector/run.sh jolt -Scp packs/vector
           bash packs/vector/run.sh java -cp "$jar" clojure.main

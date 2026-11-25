@@ -17,6 +17,7 @@ For a quick local check of vector behavior, run `bash packs/vector/run.sh clojur
 ## Explore the packs
 
 - [Clojure 1.13 properties](packs/clojure-1.13/README.md) test destructuring, lookups, compiler hints, metadata, merges and source versus AOT compilation. They include seeded replay commands and distinguish known, version-specific observations from expected behavior.
+- [Jolt native regions](packs/native-regions/README.md) checks that an array update has the same visible effects in JVM Clojure, Jolt source, and a binary compiled to C.
 - [Portable vectors](packs/vector/README.md) test slices, updates, reductions and retained snapshots against a sequence model, including generated histories and shrinking.
 - [Shared differential replay](packs/shared/README.md) generates one set of binding and lookup recipes, runs it on multiple builds, and creates small standalone reproducers for disagreements.
 - [Derivative runtimes](packs/derivatives/README.md) describes the common cases used for jank and ClojureCLR.
