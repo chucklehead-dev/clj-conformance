@@ -8,7 +8,7 @@ on:
         description: Suite to run
         type: choice
         default: all
-        options: [all, pilot, corpus, jvm-versions, jolt-nightly]
+        options: [all, pilot, corpus, jvm-versions, jolt-nightly, babashka-release, babashka-dev]
 
 permissions:
   contents: read
@@ -147,3 +147,51 @@ jobs:
         with:
           name: jolt-nightly-comparison
           path: target/nightly/
+
+  babashka:
+    if: github.event_name == 'schedule' || contains(fromJSON('["all","babashka-release","babashka-dev"]'), inputs.suite)
+    needs: recipes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: ${{ fromJSON(inputs.suite == 'babashka-release' && '["release"]' || inputs.suite == 'babashka-dev' && '["dev"]' || '["release","dev"]') }}
+    env:
+      VECTOR_RECIPES: target/vector/recipes.edn
+      BB_DIR: target/babashka/${{ matrix.channel }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/download-artifact@v4
+        with:
+          name: vector-recipes
+          path: target/vector
+      - uses: DeLaGuardo/setup-clojure@6d46099eae24853c33c0482f2bb54edf4f1a4c74
+        with:
+          cli: 1.12.3.1577
+      - name: Resolve and verify Babashka
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANNEL: ${{ matrix.channel }}
+        run: bash pilot/install-babashka.sh "$CHANNEL" "$BB_DIR"
+      - name: Run vector and sibling isolation properties
+        run: |
+          bash packs/vector/run.sh "$BB_DIR/bb" 2>&1 | tee "$BB_DIR/vector.log"
+          "$BB_DIR/bb" packs/clojure-1.13/siblings.clj "$GITHUB_RUN_ID" --probe 2>&1 | tee "$BB_DIR/siblings.log"
+        shell: bash
+      - name: Compare numeric behavior with JVM Clojure 1.12.3
+        run: |
+          jar=$(find "$CLOJURE_INSTALL_DIR" -name clojure-tools-1.12.3.1577.jar -print -quit)
+          java -cp "$jar" clojure.main -e '(assert (= "1.12.3" (clojure-version))) (load-file "pilot/numeric.clj")' > "$BB_DIR/jvm.numeric"
+          "$BB_DIR/bb" pilot/numeric.clj > "$BB_DIR/bb.numeric"
+          diff -u "$BB_DIR/jvm.numeric" "$BB_DIR/bb.numeric"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: babashka-${{ matrix.channel }}-comparison
+          path: |
+            ${{ env.BB_DIR }}/*.json
+            ${{ env.BB_DIR }}/*.edn
+            ${{ env.BB_DIR }}/*.txt
+            ${{ env.BB_DIR }}/*.log
+            ${{ env.BB_DIR }}/*.numeric

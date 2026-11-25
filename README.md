@@ -39,3 +39,9 @@ Start by generating bounded numeric expression recipes. Evaluate each in literal
 The [portable vector pack](packs/vector/README.md) defines the domain, oracle, evidence required for portable assertions, and how to reproduce discovery runs. The JVM comparison gates exact reviewed outcomes in `pilot/reviewed-1.13.0-alpha11.edn` against that version alone. The baseline JVM retains its original gate. Both per-version EDN reports retain the observed differences.
 
 The [Clojure 1.13 property pack](packs/clojure-1.13/README.md) exercises checked and nested destructuring, selector summaries, inlined lookup and recursive merges in the scheduled and manual JVM comparison.
+
+## Babashka CI
+
+The daily conformance run and manual `all` selection include two independent Linux jobs. Select `babashka-release` or `babashka-dev` in the workflow's suite menu to run either individually. Release resolves the latest published release. Dev follows the upstream installer's development version pointer and downloads the corresponding published binary. Each run verifies the asset digest and records its ID, SHA-256, and the binary's own Git SHA from `bb describe`.
+
+Both channels compare numeric pilot results with JVM Clojure 1.12.3, replay the shared vector recipes, and exercise sibling isolation in fn, let and loop using per-feature probes. [Babashka installer](https://github.com/babashka/babashka/blob/master/install) · [Published development builds](https://github.com/babashka/babashka-dev-builds/releases)
