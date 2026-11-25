@@ -24,6 +24,9 @@ for version in 1.12.3 "$candidate"; do
   actual=$("${run[@]}" -e '(print (clojure-version))')
   test "$actual" = "$version"
   "${run[@]}" pilot/numeric.clj > "$out/$version.numeric" || failed=1
+  if [[ "$version" = "$candidate" ]]; then
+    "${run[@]}" packs/clojure-1.13/check.clj 2>&1 | tee "$out/$version.properties.log" || failed=1
+  fi
   unset CLJ_CONFORMANCE_REVIEW
   if [[ "$version" != 1.12.3 && -f "pilot/reviewed-$version.edn" ]]; then
     export CLJ_CONFORMANCE_REVIEW="pilot/reviewed-$version.edn"
