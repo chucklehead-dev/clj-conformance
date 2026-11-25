@@ -29,3 +29,15 @@ Alpha10 is a historical negative control. On nil input its nested selector retur
 The alpha9 release dropped the experimental :defaults directive. Use the current :or and :all contracts. Cross-runtime admission requires a shared documented contract, domain and observable outcome for that target. Passing this JVM pack alone supplies evidence only for the tested candidate and inputs.
 
 [Development changelog](https://clojure.org/releases/devchangelog) · [Upstream destructuring and selector tests at alpha11](https://github.com/clojure/clojure/blob/clojure-1.13.0-alpha11/test/clojure/test_clojure/data_structures.clj)
+
+## Recursive destructuring swarm
+
+Each CI run uses its GitHub run ID as a seed. Each of 64 trials picks a subset of key families, defaults, checked and renamed required bindings, and selector summaries. It compiles a function parameter from a tree up to four keys deep, then exercises 32 inputs including nil, empty maps, dense trees and sparse trees with nil branches. The model walks input paths to predict every local and the nested missing-key report. A second check adds an unrelated key carrying false and verifies that only the excess and augmented maps can acquire it. Summaries must contain ordinary data from the generator's domain.
+
+The first mismatch prints the generated form, seed, trial, input and observations. Replay the same revision with the recorded candidate and seed:
+
+```sh
+clojure -Srepro -Sdeps '{:deps {org.clojure/clojure {:mvn/version "1.13.0-alpha11"}}}' -M packs/clojure-1.13/swarm.clj 13011
+```
+
+Seed 13011 exercises the older alpha10 nested-required regression. The swarm currently generates associative function parameter forms with unique locals. Sequence destructuring, shared locals, invalid forms, and automated shrinking are outside its coverage.
