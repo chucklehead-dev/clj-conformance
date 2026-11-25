@@ -5,19 +5,23 @@ out=target/jvm-versions
 mkdir -p "$out"
 repo=https://maven-central.storage-download.googleapis.com/maven2
 curl -fsSL --retry 3 "$repo/org/clojure/clojure/maven-metadata.xml" -o "$out/metadata.xml"
-candidate=$(python3 - "$out/metadata.xml" <<'PY'
+resolved=$(python3 - "$out/metadata.xml" <<'PY'
 import re, sys, xml.etree.ElementTree as ET
+stable = []
 versions = []
 for v in ET.parse(sys.argv[1]).findall('.//versions/version'):
+    if re.fullmatch(r'1\.12\.\d+', v.text or ''):
+        stable.append((int(v.text.split('.')[-1]), v.text))
     m = re.fullmatch(r'1\.13\.(\d+)(?:-(alpha|beta|rc)(\d+))?', v.text or '')
     if m:
         versions.append(((int(m[1]), {'alpha':0,'beta':1,'rc':2,None:3}[m[2]], int(m[3] or 0)), v.text))
-print(max(versions)[1])
+print(max(stable)[1], max(versions)[1])
 PY
 )
-echo "Comparing 1.12.3 and $candidate"
+read -r stable candidate <<< "$resolved"
+echo "Comparing pinned 1.12.3, stable $stable and candidate $candidate"
 failed=0
-for version in 1.12.3 "$candidate"; do
+for version in 1.12.3 "$stable" "$candidate"; do
   deps="{:deps {org.clojure/clojure {:mvn/version \"$version\"}} :mvn/repos {\"central\" {:url \"$repo/\"}}}"
   run=(clojure -Srepro -Sdeps "$deps" -M)
   bash packs/vector/run.sh "${run[@]}" || failed=1
@@ -28,8 +32,11 @@ for version in 1.12.3 "$candidate"; do
   "${run[@]}" packs/clojure-1.13/interactions.clj "${GITHUB_RUN_ID:-13011}" 2>&1 | tee "$out/$version.interactions.log" || failed=1
   if [[ -f target/vector/shared.edn ]]; then
     mkdir -p target/shared
-    label=jvm-candidate
-    if [[ "$version" = 1.12.3 ]]; then label=jvm-baseline; fi
+    case "$version" in
+      1.12.3) label=jvm-baseline ;;
+      "$stable") label=jvm-stable ;;
+      *) label=jvm-candidate ;;
+    esac
     "${run[@]}" packs/shared/worker.clj target/vector/shared.edn "$label" "$actual" "target/shared/$label.edn" || failed=1
   fi
   "${run[@]}" pilot/numeric.clj > "$out/$version.numeric" || failed=1
@@ -48,7 +55,9 @@ for version in 1.12.3 "$candidate"; do
     --outcomes "$out/$version.rows" || failed=1
 done
 for result in numeric rows; do
-  diff -u "$out/1.12.3.$result" "$out/$candidate.$result" > "$out/$result.diff" || failed=1
+  diff -u "$out/1.12.3.$result" "$out/$stable.$result" > "$out/pinned-vs-stable.$result.diff" || failed=1
+  head -100 "$out/pinned-vs-stable.$result.diff"
+  diff -u "$out/$stable.$result" "$out/$candidate.$result" > "$out/$result.diff" || failed=1
   head -100 "$out/$result.diff"
 done
 exit "$failed"

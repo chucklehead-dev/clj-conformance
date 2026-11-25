@@ -269,9 +269,9 @@ jobs:
           SUITE: ${{ inputs.suite || 'all' }}
         run: |
           case "$SUITE" in
-            all) builds=(jvm-baseline jvm-candidate jolt-release jolt-nightly bb-release bb-dev) ;;
+            all) builds=(jvm-baseline jvm-stable jvm-candidate jolt-release jolt-nightly bb-release bb-dev) ;;
             pilot) builds=(jolt-release) ;;
-            jvm-versions) builds=(jvm-baseline jvm-candidate) ;;
+            jvm-versions) builds=(jvm-baseline jvm-stable jvm-candidate) ;;
             jolt-nightly) builds=(jolt-nightly) ;;
             babashka-release) builds=(bb-release) ;;
             babashka-dev) builds=(bb-dev) ;;
@@ -280,6 +280,9 @@ jobs:
           for build in "${builds[@]}"; do reports+=("target/shared/$build.edn"); done
           jar=$(find "$CLOJURE_INSTALL_DIR" -name clojure-tools-1.12.3.1577.jar -print -quit)
           java -cp "$jar" clojure.main packs/shared/compare.clj target/fixtures/shared.edn target/comparison "${reports[@]}"
+      - name: Publish shared property results in the run summary
+        if: always() && hashFiles('target/comparison/coverage.md') != ''
+        run: cat target/comparison/coverage.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

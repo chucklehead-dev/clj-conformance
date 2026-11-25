@@ -1,5 +1,5 @@
 (ns conformance.shared-compare
-  (:require [clojure.edn :as edn] [clojure.java.io :as io]))
+  (:require [clojure.edn :as edn] [clojure.java.io :as io] [clojure.string :as str]))
 
 (defn fields [{:keys [family expected]}]
   (if (= :get-in (first family))
@@ -27,6 +27,32 @@
                       pairs)]
     (for [[a x b y] comparisons path (differences c x y)]
       {:key [(:family c) a b path] :case i :a x :b y})))
+
+(defn case-group [{:keys [family requires]}]
+  (if (= :get-in (first family))
+    :lookup
+    (if (seq requires) :required :ordinary)))
+
+(defn coverage-table [seed cases reports]
+  (let [lines
+        (for [{:keys [runtime build rows]} reports]
+          (let [groups (group-by (comp case-group first) (map vector cases rows))
+                cell (fn [group]
+                       (let [counts (frequencies
+                                     (for [[c row] (groups group)]
+                                       (cond (:unsupported row) :skip
+                                             (= {:values (:expected c)} row) :pass
+                                             :else :differ)))]
+                         (str/join " / " (map #(get counts % 0) [:pass :skip :differ]))))
+                label (if (str/starts-with? runtime "jvm-") (str runtime " " build) runtime)]
+            (str "| " label " | " (cell :lookup) " | " (cell :ordinary) " | " (cell :required) " |")))]
+    (str/join "\n"
+              (concat ["## Shared property results" ""
+                       (str "Seed `" seed "`. Each cell counts cases that matched the model / "
+                            "skipped a required feature / differed from the model.")
+                       "" "| Worker | Nested lookup | Ordinary sibling bindings | Required sibling bindings |"
+                       "| --- | --- | --- | --- |"]
+                      lines ["" "Build identities and failures are in `comparison.edn`."]))))
 
 (let [[fixtures out & files] *command-line-args*
       {:keys [cases seed]} (edn/read-string (slurp fixtures))
@@ -57,6 +83,7 @@
                                                :executed (count (remove :unsupported (:rows r)))))
                                 reports)
                  :findings evidence}]
+    (spit (io/file dir "coverage.md") (coverage-table seed cases reports))
     (spit (io/file dir "comparison.edn") (pr-str summary))
     (prn (assoc (dissoc summary :findings :workers) :workers names :findings (count evidence)))
     (when (seq evidence) (System/exit 1))))

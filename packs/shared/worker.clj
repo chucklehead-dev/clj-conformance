@@ -10,7 +10,7 @@
                               :when error]
                           [feature error]))
       _ (doseq [[feature error] rejected]
-          (when-not (or (= runtime "jvm-baseline")
+          (when-not (or (#{"jvm-baseline" "jvm-stable"} runtime)
                         (and (.startsWith runtime "jolt-")
                              (re-find #"Unsupported map directive: :(req!|missing)" error)))
             (throw (ex-info "Unexpected feature rejection"
