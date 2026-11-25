@@ -1,0 +1,49 @@
+name: Clojure conformance
+on:
+  schedule:
+    - cron: '23 6 * * *'
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Suite to run
+        type: choice
+        default: all
+        options: [all, pilot, corpus]
+
+permissions:
+  contents: read
+
+jobs:
+  pilot:
+    if: github.event_name == 'schedule' || inputs.suite != 'corpus'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: DeLaGuardo/setup-clojure@6d46099eae24853c33c0482f2bb54edf4f1a4c74
+        with:
+          cli: 1.12.3.1577
+      - uses: chucklehead-dev/jolt-hegel/.github/actions/setup-jolt@83740a1124011f3e10b2bb822ffadc1c9996cb58
+        with:
+          version: '0.8.30'
+          asset: jolt-v0.8.30-x86_64-linux.tar.gz
+          sha256: c9eb00ce9b58e6ab19dcfc324edad2ad5127bab7339e8d018ce2c30876037bdd
+      - run: clojure -P
+      - run: bash pilot/compare.sh
+
+  corpus:
+    if: github.event_name == 'schedule' || inputs.suite != 'pilot'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: DeLaGuardo/setup-clojure@6d46099eae24853c33c0482f2bb54edf4f1a4c74
+        with:
+          cli: 1.12.3.1577
+      - run: clojure -M test/conformance/certify.clj --self-test
+      - run: clojure -M test/conformance/certify.clj --edn report.edn
+      - uses: actions/upload-artifact@v4
+        if: always() && hashFiles('report.edn') != ''
+        with:
+          name: jvm-corpus-report
+          path: report.edn

@@ -4,6 +4,8 @@ Compare Clojure implementations with reference JVM Clojure and independently sta
 
 ## First run
 
+The [Clojure conformance workflow](https://github.com/chucklehead-dev/clj-conformance/actions/workflows/conformance.yml) runs the numeric pilot and the JVM corpus in separate Linux jobs daily at 06:23 UTC. Choose **Run workflow** to run both or select one suite. From the CLI use `gh workflow run conformance.yml -f suite=all` (or `pilot`, `corpus`). The corpus job uploads its EDN report when produced, including on a failed comparison. The historical regression matrix still requires an explicit pair of Jolt builds.
+
 Install Clojure CLI, Jolt 0.8.30, Bash, and GNU `timeout`. From the repository root run:
 
 ```sh
