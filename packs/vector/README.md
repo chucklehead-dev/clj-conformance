@@ -14,3 +14,8 @@ PRs run fixed fixtures. Scheduled/manual runs add 100 recipes generated once wit
     bash packs/vector/run.sh jolt -Scp packs/vector
 
 Set VECTOR_RECIPES to a downloaded recipe file for the same discovery batch. To replay a minimum, put it inside a one-element EDN vector and pass that file to check.clj check. Timeouts fail the worker and need separate confirmation before reporting a target defect.
+
+A portability review example from the imported corpus: a destructuring default
+that refers to a sibling binding returns 2 on Clojure 1.12.3 and fails compilation
+on 1.13.0-alpha11 (unresolved symbol). Treat this as a versioned observation;
+the original corpus label alone cannot establish a common requirement.

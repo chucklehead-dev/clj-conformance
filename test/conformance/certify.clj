@@ -459,10 +459,10 @@
         reviewed (if review-path (edn/read-string (slurp review-path)) {})
         _ (when review-path
             (assert (= (str "pilot/reviewed-" (clojure-version) ".edn") review-path)))
-        matched (into {} (keep (fn [{:keys [row bucket detail]}]
+        matched (into {} (keep (fn [{:keys [row bucket detail reason]}]
                                  (let [k [(:suite row) (:label row)]
-                                       [baseline target outcome] (get reviewed k)]
-                                   (when (and baseline (= target bucket) (= outcome detail))
+                                       [baseline target outcome expected-reason] (get reviewed k)]
+                                   (when (and baseline (= target bucket) (= outcome detail) (= reason expected-reason))
                                      [k baseline]))) results))
         _ (when-not (= (set (keys matched)) (set (keys reviewed)))
             (throw (ex-info "Reviewed outcome changed or disappeared"
@@ -473,7 +473,7 @@
     (when-let [path (second (drop-while #(not= "--outcomes" %) *command-line-args*))]
       (spit path (with-out-str
                    (doseq [{:keys [row bucket reason]} results]
-                     (prn [(:suite row) (:label row) (get matched [(:suite row) (:label row)] bucket) reason])))))
+                     (prn [(:suite row) (:label row) (get matched [(:suite row) (:label row)] bucket) (when-not (matched [(:suite row) (:label row)]) reason)])))))
     (println (format "Certifying %d corpus rows against JVM Clojure %s\n" n (clojure-version)))
     (println (format "  certified        %5d  (jolt expected == JVM)" (cnt :certified)))
     (println (format "  certified-throws %5d  (:throws, JVM also throws)" (cnt :certified-throws)))

@@ -10,4 +10,5 @@
  ["clojure.core / leaf batch 2" "merge entry pair"] [:certified :jvm-raises "jolt-expected=\"{:a 1, :b 2}\" JVM raised IllegalArgumentException: Don't know how to create ISeq from: clojure.lang.Keyword"]
  ["map / update" "merge map-entry (conj)"] [:certified :jvm-raises "jolt-expected=\"{:a 1}\" JVM raised IllegalArgumentException: Don't know how to create ISeq from: clojure.lang.Keyword"]
  ["map / update" "merge [k v] vector"] [:certified :jvm-raises "jolt-expected=\"{:foo 1}\" JVM raised IllegalArgumentException: Don't know how to create ISeq from: clojure.lang.Keyword"]
- ["map / strictness (throws like Clojure)" "merge [k v] ok"] [:certified :jvm-raises "jolt-expected=\"{:foo 1}\" JVM raised IllegalArgumentException: Don't know how to create ISeq from: clojure.lang.Keyword"]}
+ ["map / strictness (throws like Clojure)" "merge [k v] ok"] [:certified :jvm-raises "jolt-expected=\"{:foo 1}\" JVM raised IllegalArgumentException: Don't know how to create ISeq from: clojure.lang.Keyword"]
+ ["destructure / :or" ":keys :or default uses sibling binding (lazy eval order)"] [:certified :uncertifiable "RuntimeException: Unable to resolve symbol: a in this context" :unresolved-symbol]}
