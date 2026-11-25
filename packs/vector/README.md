@@ -12,7 +12,7 @@ After every operation the runner compares the vector with a sequence model, incl
 
 **Admission rule for new properties.** Record a public contract or a derivation from one, the input domain, what each participating host claims to support, the observable result and independent oracle. Each host must pass explicit boundary witnesses. Keep unsupported features visible as capability gaps; give undocumented behavior and version-specific expectations their own labeled characterization tests. If runtimes disagree, check the domain and oracle before attributing a bug. A newly observed consensus alone cannot establish portability.
 
-PRs run fixed fixtures. Scheduled/manual runs add 100 recipes generated once with the run ID as seed by the pinned development Hegel engine (0.51.6). Jobs consume the same uploaded EDN. A pack-local deletion/size shrinker preserves the failed operation and law. The control deliberately loses a write through an offset view; it must shrink to a two-element input and replay in a new process. Run locally with:
+PRs run fixed fixtures. Scheduled/manual runs add 100 recipes generated once with the run ID as seed by the pinned development Hegel engine (0.53.2). Jobs consume the same uploaded EDN. A pack-local deletion/size shrinker preserves the failed operation and law. The control deliberately loses a write through an offset view; it must shrink to a two-element input and replay in a new process. Run locally with:
 
     bash packs/vector/run.sh clojure -M
     bash packs/vector/run.sh jolt -Scp packs/vector
