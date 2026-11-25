@@ -20,7 +20,7 @@ Alpha10 is a historical negative control. On nil input its nested selector retur
 
 ## Next properties from the changelog
 
-1. Generate a binding shape once and emit it in let, fn and loop. Start with equivalent keyword, string and symbol key families, qualified checked keys, and nested renaming. Compare values against a presence-based model and test rejection of invalid forms separately.
+1. Extend the mixed binding swarm to cover qualified, symbol and string keys across binding contexts. Test rejection of invalid forms separately.
 2. Exercise transform-keys with injective key renames on nested maps and mixed collection values. Check an inverse round trip and an independently specified expected tree. Define collision expectations separately if the docs guarantee them.
 3. Cross the small-map representation boundary with assoc!, dissoc! and persistent!, comparing every completed history to a persistent map model. Check values and metadata where documented. Representation thresholds and speed belong in benchmarks.
 4. Extend literal versus computed get-in with side-effect counters around arguments. Test the same value, evaluation count and order. Check type-hint propagation using a separate compiler fixture.
@@ -40,4 +40,16 @@ The first mismatch prints the generated form, seed, trial, input and observation
 clojure -Srepro -Sdeps '{:deps {org.clojure/clojure {:mvn/version "1.13.0-alpha11"}}}' -M packs/clojure-1.13/swarm.clj 13011
 ```
 
-Seed 13011 exercises the older alpha10 nested-required regression. The swarm currently generates associative function parameter forms with unique locals. Sequence destructuring, shared locals, invalid forms, and automated shrinking are outside its coverage.
+Seed 13011 exercises the older alpha10 nested-required regression. This associative swarm uses unique locals.
+
+## Mixed map and sequence bindings
+
+The companion runner alternates map and sequential bindings for two to five layers, with either kind at the root. Map layers check a required sibling with `:keys!` and `:missing`, a defaulted sibling with `:or`, and an explicitly bound child. Sequential layers vary the child position, rest capture, and `:as`. Each generated form runs against 32 inputs in three contexts. The loop carries the next input through `recur`; starting and ending with nil checks that the final iteration clears earlier bindings. Inputs include lists, vectors, truncated sequences, and dense and sparse maps. The oracle predicts each observed local directly from the recipe and input.
+
+Replay with the seed from the JVM comparison artifact:
+
+```sh
+clojure -Srepro -Sdeps '{:deps {org.clojure/clojure {:mvn/version "1.13.0-alpha11"}}}' -M packs/clojure-1.13/mixed.clj 13011
+```
+
+The mixed runner generates one nested child per layer. It covers ordinary map-to-sequence bindings and checked scalar siblings. Alpha11's binding spec accepts a local symbol or a map binding as the binding inside `:req!`; a vector binding directly inside `:req!` is outside this grammar. Both swarms report replayable failures. Automated shrinking and invalid-form generation remain open.

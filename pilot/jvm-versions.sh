@@ -28,6 +28,7 @@ for version in 1.12.3 "$candidate"; do
     "${run[@]}" packs/clojure-1.13/check.clj 2>&1 | tee "$out/$version.properties.log" || failed=1
     seed=${DESTRUCTURING_SEED:-${GITHUB_RUN_ID:-13011}}
     "${run[@]}" packs/clojure-1.13/swarm.clj "$seed" 2>&1 | tee "$out/$version.swarm.log" || failed=1
+    "${run[@]}" packs/clojure-1.13/mixed.clj "$seed" 2>&1 | tee "$out/$version.mixed.log" || failed=1
   fi
   unset CLJ_CONFORMANCE_REVIEW
   if [[ "$version" != 1.12.3 && -f "pilot/reviewed-$version.edn" ]]; then
