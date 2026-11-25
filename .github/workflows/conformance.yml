@@ -28,8 +28,11 @@ jobs:
           version: '0.8.30'
           asset: jolt-v0.8.30-x86_64-linux.tar.gz
           sha256: c9eb00ce9b58e6ab19dcfc324edad2ad5127bab7339e8d018ce2c30876037bdd
-      - run: clojure -P
-      - run: bash pilot/compare.sh
+      - name: Run the dependency-free pilot with the pinned CLI's bundled Clojure
+        run: |
+          jar=$(find "$CLOJURE_INSTALL_DIR" -name clojure-tools-1.12.3.1577.jar -print -quit)
+          test -f "$jar"
+          PILOT_CLOJURE_JAR="$jar" bash pilot/compare.sh
 
   corpus:
     if: github.event_name == 'schedule' || inputs.suite != 'pilot'
