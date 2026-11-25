@@ -8,7 +8,7 @@ on:
         description: Suite to run
         type: choice
         default: all
-        options: [all, pilot, corpus, jvm-versions]
+        options: [all, pilot, corpus, jvm-versions, jolt-nightly]
 
 permissions:
   contents: read
@@ -66,3 +66,38 @@ jobs:
         with:
           name: jvm-version-comparison
           path: target/jvm-versions/
+
+  jolt-nightly:
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'jolt-nightly'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: DeLaGuardo/setup-clojure@6d46099eae24853c33c0482f2bb54edf4f1a4c74
+        with:
+          cli: 1.12.3.1577
+      - name: Resolve and verify the official Linux nightly
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p target/nightly "$RUNNER_TEMP/nightly"
+          gh api repos/jolt-lang/jolt/releases/tags/vnightly > "$RUNNER_TEMP/release.json"
+          jq -e '{commit:.target_commitish, release_id:.id, asset:(.assets[]|select(.name=="jolt-vnightly-x86_64-linux.tar.gz")|{id,name,digest})}' \
+            "$RUNNER_TEMP/release.json" > target/nightly/build.json
+          asset=$(jq -er .asset.id target/nightly/build.json)
+          digest=$(jq -er .asset.digest target/nightly/build.json)
+          gh api -H 'Accept: application/octet-stream' "repos/jolt-lang/jolt/releases/assets/$asset" > "$RUNNER_TEMP/nightly.tgz"
+          echo "${digest#sha256:}  $RUNNER_TEMP/nightly.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/nightly.tgz" -C "$RUNNER_TEMP/nightly" --strip-components=1
+          "$RUNNER_TEMP/nightly/jolt" --version | tee target/nightly/version.txt
+      - name: Compare nightly with JVM Clojure 1.12.3
+        run: |
+          export PILOT_CLOJURE_JAR=$(find "$CLOJURE_INSTALL_DIR" -name clojure-tools-1.12.3.1577.jar -print -quit)
+          test -f "$PILOT_CLOJURE_JAR"
+          JOLT="$RUNNER_TEMP/nightly/jolt" bash pilot/compare.sh 2>&1 | tee target/nightly/comparison.log
+        shell: bash
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jolt-nightly-comparison
+          path: target/nightly/
