@@ -9,9 +9,10 @@
 
 (defn check
   ([property input want got] (check property input want got nil))
-  ([property input want got reviewed]
+  ([property input want got reviewed] (check property input want got reviewed :known))
+  ([property input want got reviewed reviewed-status]
    (let [status (cond (= want got) :pass
-                      (and (= version "1.13.0-alpha11") (some? reviewed) (= reviewed got)) :known
+                      (and (= version "1.13.0-alpha11") (some? reviewed) (= reviewed got)) reviewed-status
                       :else :fail)]
      (swap! totals update-in [property status] (fnil inc 0))
      (when (= status :fail) (swap! unexpected inc))
@@ -153,6 +154,85 @@
           (doseq [[snapshot before] snapshots]
             (check :snapshot-isolation [seed n] before snapshot))
           (check :map-origin [seed n] [{} md] [origin (meta origin)]))))))
+
+(defn default-timing [shape input-throws? default-throws?]
+  (let [events (atom []) state (atom :before)
+        input! (fn []
+                 (swap! events conj :input)
+                 (when input-throws? (throw (ex-info "input" {:stage :input})))
+                 (reset! state :after)
+                 {})
+        default! (fn []
+                   (swap! events conj :default)
+                   (when default-throws? (throw (ex-info "default" {:stage :default})))
+                   @state)
+        result (try
+                 [:value (case shape
+                           :direct (let [{:keys [x] :or {x (default!)}} (input!)] x)
+                           :prebound (let [m (input!) {:keys [x] :or {x (default!)}} m] x))]
+                 (catch clojure.lang.ExceptionInfo e [:threw (:stage (ex-data e))]))]
+    [result @events]))
+
+(doseq [input-throws? [false true] default-throws? [false true] shape [:direct :prebound]]
+  (let [input-first (cond input-throws? [[:threw :input] [:input]]
+                          default-throws? [[:threw :default] [:input :default]]
+                          :else [[:value :after] [:input :default]])
+        default-first (cond default-throws? [[:threw :default] [:default]]
+                            input-throws? [[:threw :input] [:default :input]]
+                            :else [[:value :before] [:default :input]])]
+    (check :default-input-order [shape input-throws? default-throws?]
+           input-first (default-timing shape input-throws? default-throws?)
+           (when (= shape :direct) default-first) :observed-transition)))
+
+;; Compare callback counts to the same loop without summary directives. Loop
+;; destructuring can already evaluate an initial default more than once.
+(defn summary-loop [dirs]
+  (let [binding (merge '{:keys [x] :or {x (swap! counter inc)}} dirs)]
+    (eval
+     (list 'fn ['inputs]
+           (list 'let ['counter '(atom 0)]
+                 (list 'loop ['i 0 binding '(nth inputs 0) 'out []]
+                       (list 'let ['row [(list 'deref 'counter) 'x dirs]
+                                   'out '(conj out row) 'j '(inc i)]
+                             '(if (= j (count inputs))
+                                out (recur j (nth inputs j) out)))))))))
+
+(let [inputs [{} {:x false :extra nil} {:extra false} {:x nil} {}]
+      base ((summary-loop {}) inputs)]
+  (prn {:property :loop-default-counts :version version :cumulative-calls (mapv first base)})
+  (when candidate?
+    (doseq [dirs [{:select 'sel} {:all 'whole} {:select 'sel :all 'whole}]]
+      (let [expected (mapv (fn [m [calls]]
+                             (let [v (get m :x calls)]
+                               [calls v (select-keys {:select {:x v} :all (assoc m :x v)}
+                                                     (keys dirs))]))
+                           inputs base)]
+        (check :loop-default-summaries dirs expected ((summary-loop dirs) inputs))))))
+
+;; Incoming tags identify each key even though merge-with passes only values
+;; to the callback. Reversing value roles also exercises a nil/false right operand.
+(doseq [n [7 8 9 63 64 65]
+        :let [ks (shuffled (mapv #(keyword (str "k" %)) (range n)))
+              incoming-ks (concat (take-nth 2 ks) [:fresh1 :fresh2 :fresh3])]
+        tagged-left? [true false]
+        :let [value (fn [tagged? k i] (if tagged? [:at k] (nth [nil false i] (mod i 3))))
+              left (into {} (map-indexed (fn [i k] [k (value tagged-left? k i)]) ks))
+              right (into {} (map-indexed (fn [i k] [k (value (not tagged-left?) k i)]) incoming-ks))
+              overlap (filter #(contains? left %) (keys right))
+              expected-calls (frequencies (for [k overlap] [(left k) (right k)]))
+              expected (reduce (fn [m [k v]]
+                                 (assoc m k (if (contains? left k) [(left k) v] v)))
+                               left right)
+              padding (mapv #(keyword (str "pad" %)) (range 70))
+              grown (apply dissoc (into (zipmap padding (repeat true)) left) padding)]
+        [history x] [[:direct left] [:grown-then-deleted grown] [:sorted (into (sorted-map) left)]]
+        [route y] [[:persistent right] [:java-map (java.util.HashMap. right)]]]
+  (let [calls (atom {})
+        merged (merge-with (fn [a b]
+                             (swap! calls update [a b] (fnil inc 0))
+                             [a b]) x y)]
+    (check :merge-with-history [seed n tagged-left? history route]
+           [expected expected-calls left right] [merged @calls x (into {} y)])))
 
 (prn {:version version :seed seed :checks @totals})
 (when (pos? @unexpected) (System/exit 1))

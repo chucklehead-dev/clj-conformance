@@ -1,0 +1,40 @@
+name: jank conformance
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  jank-linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install the upstream continuous Ubuntu build
+        run: |
+          mkdir -p target/jank-report
+          curl -fsSL --retry 3 https://ppa.jank-lang.org/KEY.gpg -o "$RUNNER_TEMP/jank-key.asc"
+          gpg --dearmor --output "$RUNNER_TEMP/jank-key.gpg" "$RUNNER_TEMP/jank-key.asc"
+          sudo install -D -m 0644 "$RUNNER_TEMP/jank-key.gpg" /etc/apt/keyrings/jank.gpg
+          echo 'deb [signed-by=/etc/apt/keyrings/jank.gpg] https://ppa.jank-lang.org noble main' | sudo tee /etc/apt/sources.list.d/jank.list
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends jank
+          version=$(dpkg-query -W -f='${Version}' jank)
+          apt-cache show "jank=$version" | tee target/jank-report/package.txt
+          jank print-binary-version | tee target/jank-report/binary-version.txt
+      - name: Run shared derivative properties
+        run: |
+          for mode in lazy eager; do
+            jank "--$mode" run packs/derivatives/common.cljc 2>&1 | tee "target/jank-report/$mode.log"
+            grep -Fxq 'DERIVATIVE-CHECKS-PASSED' "target/jank-report/$mode.log"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jank-conformance
+          path: target/jank-report

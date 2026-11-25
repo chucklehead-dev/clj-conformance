@@ -1,0 +1,69 @@
+name: ClojureCLR conformance
+
+on:
+  workflow_call:
+    inputs:
+      shared-recipes:
+        description: Replay the vector-recipes artifact from the calling workflow
+        type: boolean
+        default: false
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  clr-conformance:
+    name: ClojureCLR (${{ matrix.channel }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: [stable, candidate-1.13]
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: 1
+      OUT: target/clr/${{ matrix.channel }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Install ClojureCLR from NuGet
+        shell: bash
+        env:
+          CHANNEL: ${{ matrix.channel }}
+        run: |
+          mkdir -p "$OUT"
+          tool_dir="$RUNNER_TEMP/clr-$CHANNEL"
+          version_args=()
+          if [[ "$CHANNEL" = candidate-1.13 ]]; then
+            version_args=(--version '1.13.*-*')
+          fi
+          dotnet tool install Clojure.Main --tool-path "$tool_dir" "${version_args[@]}"
+          dotnet tool list --tool-path "$tool_dir" | tee "$OUT/package.txt"
+          "$tool_dir/Clojure.Main" -e '(prn {:clojure (clojure-version) :clr (str System.Environment/Version)})' | tee "$OUT/version.edn"
+          echo "$tool_dir" >> "$GITHUB_PATH"
+      - uses: actions/download-artifact@v4
+        if: inputs.shared-recipes
+        with:
+          name: vector-recipes
+          path: target/vector
+      - name: Replay vector histories and negative control
+        shell: bash
+        env:
+          SHARED_RECIPES: ${{ inputs.shared-recipes }}
+        run: |
+          if [[ "$SHARED_RECIPES" == true ]]; then export VECTOR_RECIPES=target/vector/recipes.edn; fi
+          bash packs/vector/run.sh Clojure.Main 2>&1 | tee "$OUT/vector.log"
+      - name: Check shared derivative properties
+        shell: bash
+        run: |
+          Clojure.Main packs/derivatives/common.cljc 2>&1 | tee "$OUT/common.log"
+          grep -Fxq 'DERIVATIVE-CHECKS-PASSED' "$OUT/common.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: clr-${{ matrix.channel }}-comparison
+          path: ${{ env.OUT }}

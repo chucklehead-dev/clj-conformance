@@ -8,14 +8,23 @@ on:
         description: Suite to run
         type: choice
         default: all
-        options: [all, pilot, corpus, jvm-versions, jolt-nightly, babashka-release, babashka-dev]
+        options: [all, pilot, corpus, jvm-versions, jolt-nightly, babashka-release, babashka-dev, jank, clr]
 
 permissions:
   contents: read
 
 jobs:
+  jank:
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'jank'
+    uses: ./.github/workflows/jank.yml
+  clr:
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'clr'
+    needs: recipes
+    uses: ./.github/workflows/clr.yml
+    with:
+      shared-recipes: true
   recipes:
-    if: github.event_name == 'schedule' || inputs.suite != 'corpus'
+    if: github.event_name == 'schedule' || contains(fromJSON('["all","pilot","jvm-versions","jolt-nightly","babashka-release","babashka-dev","clr"]'), inputs.suite)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -85,6 +94,7 @@ jobs:
       - uses: DeLaGuardo/setup-clojure@6d46099eae24853c33c0482f2bb54edf4f1a4c74
         with:
           cli: 1.12.3.1577
+      - run: clojure -M packs/derivatives/common.cljc
       - run: clojure -M test/conformance/certify.clj --self-test
       - run: clojure -M test/conformance/certify.clj --edn report.edn
       - uses: actions/upload-artifact@v4
@@ -238,7 +248,7 @@ jobs:
 
   differential:
     needs: [recipes, pilot, jvm-versions, jolt-nightly, babashka]
-    if: always() && !cancelled() && needs.recipes.result == 'success'
+    if: always() && !cancelled() && needs.recipes.result == 'success' && inputs.suite != 'clr'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1

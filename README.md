@@ -61,3 +61,14 @@ clojure -M packs/shared/generate.clj 13011 --library /tmp/shared.edn
 bb packs/shared/worker.clj /tmp/shared.edn bb-release "$(bb --version)" /tmp/bb.edn
 clojure -M packs/shared/compare.clj /tmp/shared.edn /tmp/comparison /tmp/bb.edn
 ```
+
+## jank and ClojureCLR
+
+Select `jank` or `clr` in the main conformance workflow to run either suite. Daily and manual `all` runs include both. These lanes run the same [portable cases](packs/derivatives/common.cljc) as the JVM corpus job. They check nested lookup and default values, rebinding one sibling across a loop, and `merge-with` callback arguments when overlapping values are absent, nil, false or numeric. The logs also record the order in which destructuring evaluates an input and its default.
+
+| Runtime | Build and additional coverage | Artifact |
+| --- | --- | --- |
+| jank | Upstream continuous Ubuntu 24.04 package. Run the portable cases with lazy and eager JIT compilation. Record the APT package metadata, digest and jank binary version. | `jank-conformance` |
+| ClojureCLR | NuGet stable and latest 1.13 candidate on .NET 8. Both replay the fixed vector cases and reducer control. When called by the main workflow they also replay the generated vector recipes shared with the other workers. | `clr-stable-comparison`, `clr-candidate-1.13-comparison` |
+
+The six-worker shared differential report covers JVM Clojure, Jolt and Babashka. jank and CLR currently publish separate result artifacts. [jank installation](https://jank-lang.org/installation/) · [ClojureCLR distribution](https://www.nuget.org/packages/Clojure.Main)
