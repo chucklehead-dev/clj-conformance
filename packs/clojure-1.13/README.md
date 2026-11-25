@@ -7,7 +7,7 @@ The JVM comparison runs this pack on the latest published 1.13 candidate. The co
 | Checked keys, defaults, and summaries | Independently vary a required key, an optional key with a default, and an unrelated key across absent, nil, false, and 7. Verify the local values, original map, and exact selector output for selection, missing keys, excess keys and augmented map. |
 | Nested required forms | Vary the outer input between nil, an empty map and a present child map. Vary child and unrelated keys independently. Verify the missing path and projected subtree, including empty selections. Inspect the local bound by nested :as when the outer key is absent (CLJ-2990). |
 | Function parameter destructuring | Rename a qualified required key and independently vary a same-name unqualified key. Absence must throw. Present nil and false must reach the function body. |
-| Inlined get-in | Compare literal and computed paths against explicit membership checks. Cover missing intermediate and leaf keys, nonassociative intermediate values, and nil and false defaults. |
+| Three-argument get-in | Compare literal and computed paths against explicit membership checks. Cover missing intermediate and leaf keys, nonassociative intermediate values, and nil and false defaults. |
 | Recursive merge | Preserve disjoint siblings at a nested branch. At overlapping leaves, check rightmost precedence for merge-deep and left/right argument order for merge-deep-with, including present nil. |
 
 Run locally with the candidate Clojure CLI dependencies, including its matching core.specs.alpha.
@@ -22,7 +22,7 @@ Alpha10 is a historical negative control. On nil input its nested selector retur
 
 1. Extend the mixed binding swarm to cover qualified, symbol and string keys across binding contexts. Test rejection of invalid forms separately.
 2. Exercise transform-keys with injective key renames on nested maps and mixed collection values. Check an inverse round trip and an independently specified expected tree. Define collision expectations separately if the docs guarantee them.
-3. Cross the small-map representation boundary with assoc!, dissoc! and persistent!, comparing every completed history to a persistent map model. Check values and metadata where documented. Representation thresholds and speed belong in benchmarks.
+3. Extend the transient map histories below to hashed keys with deliberately colliding hash codes.
 4. Extend literal versus computed get-in with side-effect counters around arguments. Test the same value, evaluation count and order. Check type-hint propagation using a separate compiler fixture.
 5. Check Unicode tagged literals by supplying an explicit data reader and comparing tag and payload. Keep Java constructor and interop assertions in a JVM-specific pack.
 
@@ -66,3 +66,26 @@ The JVM candidate exercises every feature family. Stable and nightly Jolt probe 
 clojure -Srepro -Sdeps '{:deps {org.clojure/clojure {:mvn/version "1.13.0-alpha11"}}}' -M packs/clojure-1.13/siblings.clj 13011
 jolt -Scp packs/clojure-1.13 packs/clojure-1.13/siblings.clj 13011 --probe
 ```
+
+## Compiler and metadata interaction properties
+
+The JVM lane runs `interactions.clj` on 1.12.3 and the resolved 1.13 candidate. Each version has an interactions log in the JVM comparison artifact. Replay with the logged seed:
+
+```sh
+clojure -Srepro -Sdeps '{:deps {org.clojure/clojure {:mvn/version "1.13.0-alpha11"}}}' -M packs/clojure-1.13/interactions.clj 13011
+```
+
+| Transformation | Observations |
+| --- | --- |
+| Change two-argument get-in between a literal path, precomputed path and Var call | A later path element mutates the source map. All ordinary argument expressions should finish before lookup begins. Record the value and how often the key expression ran. The three-argument checks elsewhere exercise the defaulted path. |
+| Add an accurate String or Object hint to the result of if-let, when or a pass-through macro in a loop | The program should compile, recur twice, and return the same string. |
+| Hint a local receiver for an unambiguous method, or annotate a pass-through macro invocation | Compare effect order, return value, exception data and, for the pass-through macro, reference identity and the returned vector’s existing metadata. |
+| Rename a source key to nil or false with a local default | Adding :select or :all should preserve the local and report the corresponding source key. Check absent, present nil, false and 4. |
+| Replace or update user metadata | Equality, hash, lookup as a key and set membership stay stable. The new value has the requested metadata and the earlier value retains its own. |
+| Grow, delete and regrow a map via transients | Replay the same history under nil, empty and populated metadata. Observe count, find, contains? and get after each operation. Freeze at checkpoints and resume through a fresh transient. Check retained snapshots after subsequent writes. Compare by contents, independently of representation. |
+
+Both JVMs exercise metadata propagation through into and update-vals. The 1.13 candidate additionally checks metadata across transient-to-persistent conversion for vectors, sets and maps, including map growth across both small-map thresholds. Type-hint equivalence here covers accurate reference hints and unambiguous calls. Overload selection and primitive coercion have different semantics.
+
+The oracle records the three reproduced alpha11 defects as `:known` only for their specific inputs and observed value or compiler phase, cause class and message. The intended behavior counts as a pass on every version. Other failures, including a recurrence on a later alpha, fail the job.
+
+[Clojure metadata reference](https://clojure.org/reference/metadata) · [Development changelog](https://clojure.org/releases/devchangelog)

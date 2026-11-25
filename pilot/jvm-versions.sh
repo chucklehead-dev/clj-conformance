@@ -23,6 +23,7 @@ for version in 1.12.3 "$candidate"; do
   bash packs/vector/run.sh "${run[@]}" || failed=1
   actual=$("${run[@]}" -e '(print (clojure-version))')
   test "$actual" = "$version"
+  "${run[@]}" packs/clojure-1.13/interactions.clj "${GITHUB_RUN_ID:-13011}" 2>&1 | tee "$out/$version.interactions.log" || failed=1
   if [[ -f target/vector/shared.edn ]]; then
     mkdir -p target/shared
     label=jvm-candidate
