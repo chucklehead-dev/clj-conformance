@@ -14,10 +14,10 @@
       _ (doseq [[feature error] rejected]
           (when-not (or (#{"jvm-baseline" "jvm-stable"} runtime)
                         (and (.startsWith runtime "jolt-")
-                             (re-find #"Unsupported map directive: :(req!|missing|select|excess)" error)))
+                             (re-find #"Unsupported map directive: :(req!|keys!|missing|select|excess)" error)))
             (throw (ex-info "Unexpected feature rejection"
                             {:runtime runtime :feature feature :error error}))))
-      compile-form (memoize eval)
+      compile-form (conformance.partition/compiler)
       rows (mapv
             (fn [{:keys [family form inputs requires] :as c}]
               (if-let [missing (seq (filter rejected requires))]

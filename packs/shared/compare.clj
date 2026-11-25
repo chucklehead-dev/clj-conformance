@@ -6,7 +6,7 @@
 (defn fields [{:keys [family expected]}]
   (case (first family)
     :get-in [[0] [1]]
-    :partition [[0] [1 :select] [1 :excess] [2]]
+    :partition (if (= :split (second family)) [[0] [1]] [[0] [1 :select] [1 :excess] [2]])
     (into [[:outer]] (for [[side obs] (first expected) :when (map? obs)
                            :when (not= :outer side) field (keys obs)] [side field]))))
 

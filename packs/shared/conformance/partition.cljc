@@ -2,7 +2,8 @@
 
 (def probes
   {:select '(fn [{x :a :select picked}] [x picked])
-   :excess '(fn [{x :a :excess unused}] [x unused])})
+   :excess '(fn [{x :a :excess unused}] [x unused])
+   :missing '(fn [{:keys! [a] :missing missing}] [a missing])})
 
 (defn case-form [shape behavior nested? default? dirs]
   (let [key-expr (case shape :constant :a :prebound 'k :inline '(key!))
@@ -32,7 +33,7 @@
                       (:excess dirs) (assoc :excess (not-empty unused)))
      (if (= shape :constant) 0 1)]))
 
-(defn cases []
+(defn computed-key-cases []
   (vec
    (for [[nested? default?] [[false false] [true true]]
          shape [:constant :prebound :inline]
@@ -51,10 +52,47 @@
       :inputs inputs :requires (vec (keys dirs))
       :expected (mapv #(prediction shape nested? default? dirs %) inputs)})))
 
+(defn sibling-summary [ks row directive]
+  (let [selected (select-keys row ks)
+        remaining (apply dissoc row ks)
+        missing (into {} (for [k ks :when (not (contains? row k))] [k nil]))]
+    (case directive
+      :select {:row selected}
+      :excess (when (seq remaining) {:row remaining})
+      :missing (when (seq missing) {:row missing}))))
+
+(defn split-observation [ks directive input]
+  (let [row (:row input)]
+    [[(:a row) (:b row)] (sibling-summary ks row directive)]))
+
+(def split-inputs
+  (vec (for [a [{} {:a nil} {:a false} {:a 1}]
+             b [{} {:b nil} {:b false} {:b 2}]]
+         {:row (merge {:extra 3} a b)})))
+
+(defn split-cases []
+  (for [shape [:joined :a-then-b :b-then-a]
+        directive [:select :excess :missing]
+        :let [entry (if (= directive :missing) :keys! :keys)
+              dirs (if (= directive :missing) [:missing] [directive])
+              binding (case shape
+                        :joined {{entry '[a b]} :row}
+                        :a-then-b (array-map {entry '[a]} :row {entry '[b]} :row)
+                        :b-then-a (array-map {entry '[b]} :row {entry '[a]} :row))
+              f (list 'fn [(assoc binding directive 'summary)] '[ [a b] summary])]]
+    {:family [:partition :split shape directive] :variant 0 :requires dirs
+     :inputs split-inputs :form (list 'fn ['inputs] (list 'mapv f 'inputs))
+     :expected (mapv #(split-observation [:a :b] directive %) split-inputs)}))
+
+(defn cases [] (into (computed-key-cases) (split-cases)))
+
 ;; Exact alternate observations reproduced by JVM alpha11 and Babashka. Keep
 ;; these visible alongside the single-evaluation model pending contract review.
 (defn characterized [[_ shape behavior nested? dirs] runtime]
-  (when (and (= shape :inline) (seq dirs))
+  (if (= shape :split)
+    (when (not= behavior :joined)
+      {:values (mapv #(split-observation [(if (= behavior :a-then-b) :b :a)] nested? %) split-inputs)})
+    (when (and (= shape :inline) (seq dirs))
     (cond
       nested?
       {:values [[10 {:select {:branch {:a 10}} :excess {:outer 30 :branch {:a 10}}} 4]
@@ -71,7 +109,13 @@
             unused (if (and alternates? (= dirs [:excess])) {:a 10} {:b 20})
             result (cond-> {} (some #{:select} dirs) (assoc :select picked)
                               (some #{:excess} dirs) (assoc :excess unused))]
-        {:values [[10 result (inc (count dirs))]]}))))
+        {:values [[10 result (inc (count dirs))]]})))))
+
+(defn compiler []
+  ;; Equal binding maps can compile differently when their entry order differs.
+  ;; Retain the original form (including metadata) as the argument to eval.
+  (let [compile-one (memoize (fn [_ form] (eval form)))]
+    (fn [form] (compile-one (pr-str form) form))))
 
 (defn run-case [compile-form {:keys [form inputs]}]
   (try {:values ((compile-form form) inputs)}

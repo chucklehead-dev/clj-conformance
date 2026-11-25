@@ -35,4 +35,8 @@ On JVM alpha11 this flat form returns `[10 {:b 20} {:b 20} 3]`:
 
 Computing `k` as `(key!)` first and using `{x k ...}` gives `[10 {:a 10} {:b 20} 1]`. A nested variant binds a missing leaf to its default of 7 while its selected child map comes back empty. These are candidate defects pending confirmation of the semantics of computed binding keys. The partition column counts all differences from the model. The comparator retains exact characterized outcomes and writes reproducers for them. Other differences fail CI.
 
-All workers use the same [37 partition recipes and expectations](conformance/partition.cljc). The main shared artifact contains 337 cases including the other property families. jank and ClojureCLR replay the partition recipes in their derivative lanes and retain per-case differences and skip counts in their own artifacts.
+All workers use the same [46 partition recipes and expectations](conformance/partition.cljc). The main shared artifact contains 346 cases including the other property families. jank and ClojureCLR replay the partition recipes in their derivative lanes and retain per-case differences and skip counts in their own artifacts.
+
+### Can two bindings read separate fields from the same map?
+
+The nine split/join recipes require or select `:row/:a` and `:row/:b` together, then read them in two separate nested bindings in both orders. Each recipe checks 16 inputs covering absence, nil, false and distinct values. Both locals and each report should agree with the joined binding. On JVM alpha11, with only `:b` present, the joined form reports `{:row {:a nil}}` missing. Asking for the same two keys in two separate bindings can report nil. With both keys present, the split form can put a bound field in the unused map. These are characterized observations pending clarification of overlapping source paths.

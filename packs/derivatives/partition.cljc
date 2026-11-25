@@ -8,7 +8,7 @@
                               :when (nil? compiled)]
                           [feature true]))
       counts (atom {})
-      compile-form (memoize eval)]
+      compile-form (conformance.partition/compiler)]
   (prn {:probe :partition-features :rejected (vec (keys rejected))})
   (doseq [{:keys [family expected requires] :as c} (conformance.partition/cases)]
     (if (some rejected requires)
