@@ -89,3 +89,14 @@ Both JVMs exercise metadata propagation through into and update-vals. The 1.13 c
 The oracle records the three reproduced alpha11 defects as `:known` only for their specific inputs and observed value or compiler phase, cause class and message. The intended behavior counts as a pass on every version. Other failures, including a recurrence on a later alpha, fail the job.
 
 [Clojure metadata reference](https://clojure.org/reference/metadata) · [Development changelog](https://clojure.org/releases/devchangelog)
+
+## Source loading and ahead-of-time compilation
+
+The JVM job runs the same two fixture namespaces from source and from AOT-compiled classes. Source loading, compilation, and class loading each get a fresh JVM. The class-loading stage checks that the fixture source is absent from its classpath. It compares return values, metadata, reference identity within each run, and the order and count of observable effects against both the source run and an independent expected result. The hinted recur fixture also checks the precise alpha11 compile failure in both modes. A fixture that fails to compile has no class execution result. The JVM job archives each stage's EDN report.
+
+```sh
+cp=$(clojure -Srepro -Sdeps '{:deps {org.clojure/clojure {:mvn/version "1.13.0-alpha11"}}}' -Spath)
+bash packs/clojure-1.13/aot/run.sh "$cp" target/aot-local
+```
+
+[Plain-language explanations and minimal examples of the three 1.13 defects](../../docs/clojure-1.13-defects.md)

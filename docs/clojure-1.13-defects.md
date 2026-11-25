@@ -1,0 +1,56 @@
+# Three JVM Clojure 1.13 defects
+
+These examples reproduced on both 1.13.0-alpha10 and 1.13.0-alpha11. The first two also run on 1.12.3, which gives us a before-and-after comparison. The third concerns syntax introduced in 1.13. The version numbers here identify tested releases. The first affected release has not been established.
+
+## 1. Moving a lookup path into a local can change the value returned
+
+A nested lookup should finish evaluating its arguments before it starts reading the map. Here the second key expression updates the map. That makes the order of operations visible without threads or timing.
+
+```clojure
+(defn read-value [literal?]
+  (let [m (doto (java.util.HashMap.) (.put :a {:b :before}))
+        change! (fn [] (.put m :a {:b :after}) :b)]
+    (if literal?
+      (get-in m [:a (change!)])
+      (let [path [:a (change!)]]
+        (get-in m path)))))
+
+[(read-value true) (read-value false)]
+```
+
+**Expected** `[:after :after]`, as on 1.12.3. **Observed** `[:before :after]` on both tested alphas. Each call creates a fresh map.
+
+The two-argument optimization turns a vector path into successive lookups. In the literal form it reads `:a` before `change!` runs and retains the old inner map. Ordinary immutable data and constant keys hide the difference. **Workaround:** bind the path to a local before calling `get-in`. [Implementation at alpha11](https://github.com/clojure/clojure/blob/clojure-1.13.0-alpha11/src/clj/clojure/core.clj#L6403)
+
+## 2. A correct result type hint can stop a loop from compiling
+
+This loop counts down and returns a string. The hint tells the compiler the type of that result.
+
+```clojure
+(loop [i 2]
+  ^String (if-let [more (pos? i)]
+            (recur (dec i))
+            "done"))
+```
+
+**Expected** `"done"`, as on 1.12.3. **Observed** a compile error, `Can only recur from tail position`, on both tested alphas. Removing just `^String` makes the same loop return `"done"`.
+
+Clojure permits `recur` where control can jump straight back to the loop. The compiler propagates the hint by wrapping the macro expansion in a call to `identity`. That puts the jump inside another function's argument. **Workaround:** remove the hint from the macro call that encloses `recur`. Our alpha11 source-loading and ahead-of-time compilation fixtures reproduce the same failure with a pass-through macro. [Compiler change at alpha11](https://github.com/clojure/clojure/blob/clojure-1.13.0-alpha11/src/jvm/clojure/lang/Compiler.java#L7590)
+
+## 3. Asking for a destructuring summary rejects a valid default
+
+Clojure maps can use `false` or `nil` as a key. In the example below, `x` is the local name for the value at key `false`. The input is empty, so `x` should receive its default of 7.
+
+```clojure
+(let [{x false :or {x 7}} {}] x)
+;; => 7
+
+(let [{x false :or {x 7} :select view} {}] [x view])
+;; expected [7 {false 7}]
+```
+
+**Observed** the second form fails during macro expansion with `symbol x in :or does not refer to a binding`. Changing `false` to `nil` reproduces it. Changing it to `0` or `:k` yields the expected local and summary. The same issue affects `:all`. The input being empty keeps this example about the **key itself**.
+
+The implementation finds the source key for `x`, then tests that key's truthiness to decide whether the binding exists. **Workaround for this lookup:** use `(get m false 7)` and build the needed summary explicitly. That expression preserves a present nil or false value and uses 7 only when the key is absent. [Destructuring implementation at alpha11](https://github.com/clojure/clojure/blob/clojure-1.13.0-alpha11/src/clj/clojure/core.clj#L4687)
+
+The JVM comparison runs these [regression properties](../packs/clojure-1.13/interactions.clj) on the baseline and current candidate. [Replay instructions](../packs/clojure-1.13/README.md#compiler-and-metadata-interaction-properties)
