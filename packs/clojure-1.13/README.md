@@ -1,14 +1,16 @@
 # Clojure 1.13 language properties
 
-The JVM comparison runs this pack on the latest published 1.13 candidate. The contracts below reflect alpha11. Each check uses plain data as its oracle. A failure prints the property, input, expected value and observed value to the comparison artifact. A later alpha can deliberately change a contract, so review its release notes before reporting a bug.
+These tests combine language features to find failures that isolated examples can miss. For instance, adding a type hint can prevent a valid `recur` from compiling, and adding a destructuring summary can reject a valid default. The [three defect examples](../../docs/clojure-1.13-defects.md) explain the practical consequences with small programs.
 
-| Area | Property and bounded domain |
+The JVM comparison runs this pack on the latest published 1.13 candidate. The contracts below reflect alpha11; later releases can change them, so check release notes before reporting a bug. Each check uses plain data as its oracle and reports the property, input, expected value and observation on failure. See the [coverage matrix](../../docs/coverage.md) for current lanes and artifacts.
+
+| Feature | Question the test answers |
 | --- | --- |
-| Checked keys, defaults, and summaries | Independently vary a required key, an optional key with a default, and an unrelated key across absent, nil, false, and 7. Verify the local values, original map, and exact selector output for selection, missing keys, excess keys and augmented map. |
-| Nested required forms | Vary the outer input between nil, an empty map and a present child map. Vary child and unrelated keys independently. Verify the missing path and projected subtree, including empty selections. Inspect the local bound by nested :as when the outer key is absent (CLJ-2990). |
-| Function parameter destructuring | Rename a qualified required key and independently vary a same-name unqualified key. Absence must throw. Present nil and false must reach the function body. |
-| Three-argument get-in | Compare literal and computed paths against explicit membership checks. Cover missing intermediate and leaf keys, nonassociative intermediate values, and nil and false defaults. |
-| Recursive merge | Preserve disjoint siblings at a nested branch. At overlapping leaves, check rightmost precedence for merge-deep and left/right argument order for merge-deep-with, including present nil. |
+| Checked keys and defaults | If a key is present with value `nil` or `false`, does it keep that value? Only an absent key should receive its default. The selected, missing and unused entries should agree with what was bound. |
+| Nested required maps | When a parent map is missing, does the caller see the right missing path and a nil local? This caught an older alpha exposing an internal Java object. |
+| Function parameters | If a function requires `:account/id`, can an unrelated `:id` accidentally satisfy the requirement? |
+| Three-argument `get-in` | Does a missing path return the caller’s fallback while a present nil or false value survives? |
+| Recursive merges | Does merging one nested branch preserve its siblings? If two leaves collide, does the combining function see the old and new values in the right order? |
 
 Run locally with the candidate Clojure CLI dependencies, including its matching core.specs.alpha.
 
@@ -23,8 +25,7 @@ Alpha10 is a historical negative control. On nil input its nested selector retur
 1. Extend the mixed binding swarm to cover qualified, symbol and string keys across binding contexts. Test rejection of invalid forms separately.
 2. Exercise transform-keys with injective key renames on nested maps and mixed collection values. Check an inverse round trip and an independently specified expected tree. Define collision expectations separately if the docs guarantee them.
 3. Extend the transient map histories below to hashed keys with deliberately colliding hash codes.
-4. Extend literal versus computed get-in with side-effect counters around arguments. Test the same value, evaluation count and order. Check type-hint propagation using a separate compiler fixture.
-5. Check Unicode tagged literals by supplying an explicit data reader and comparing tag and payload. Keep Java constructor and interop assertions in a JVM-specific pack.
+4. Check Unicode tagged literals by supplying an explicit data reader and comparing tag and payload. Keep Java constructor and interop assertions in a JVM-specific pack.
 
 The alpha9 release dropped the experimental :defaults directive. Use the current :or and :all contracts. Cross-runtime admission requires a shared documented contract, domain and observable outcome for that target. Passing this JVM pack alone supplies evidence only for the tested candidate and inputs.
 
@@ -69,7 +70,7 @@ jolt -Scp packs/clojure-1.13 packs/clojure-1.13/siblings.clj 13011 --probe
 
 ## Compiler and metadata interaction properties
 
-The JVM lane runs `interactions.clj` on 1.12.3 and the resolved 1.13 candidate. Each version has an interactions log in the JVM comparison artifact. Replay with the logged seed:
+The JVM lane runs `interactions.clj` on the stable baselines and the resolved 1.13 candidate. Each version has an interactions log in the JVM comparison artifact. Replay with the logged seed:
 
 ```sh
 clojure -Srepro -Sdeps '{:deps {org.clojure/clojure {:mvn/version "1.13.0-alpha11"}}}' -M packs/clojure-1.13/interactions.clj 13011
@@ -87,7 +88,7 @@ clojure -Srepro -Sdeps '{:deps {org.clojure/clojure {:mvn/version "1.13.0-alpha1
 | Replace or update user metadata | Equality, hash, lookup as a key and set membership stay stable. The new value has the requested metadata and the earlier value retains its own. |
 | Grow, delete and regrow a map via transients | Replay the same history under nil, empty and populated metadata. Observe count, find, contains? and get after each operation. Freeze at checkpoints and resume through a fresh transient. Check retained snapshots after subsequent writes. Compare by contents, independently of representation. |
 
-Both JVMs exercise metadata propagation through into and update-vals. The 1.13 candidate additionally checks metadata across transient-to-persistent conversion for vectors, sets and maps, including map growth across both small-map thresholds. Type-hint equivalence here covers accurate reference hints and unambiguous calls. Overload selection and primitive coercion have different semantics.
+All three JVM lanes exercise metadata propagation through into and update-vals. The 1.13 candidate additionally checks metadata across transient-to-persistent conversion for vectors, sets and maps, including map growth across both small-map thresholds. Type-hint equivalence here covers accurate reference hints and unambiguous calls. Overload selection and primitive coercion have different semantics.
 
 On 1.12.3 a direct destructuring input runs before its default. On alpha11 the default can run before the input. When both throw, the caller receives the default's exception and the input expression never runs. Prebinding the input leaves the 1.12.3 behavior intact on both tested versions. Alpha11 logs these exact four traces as `:observed-transition` pending contract review. For the separate loop-count control, both JVMs evaluated the default twice on initial loop entry, then once on each recur in the tested history. The property compares traces across summary configurations without requiring that implementation detail.
 

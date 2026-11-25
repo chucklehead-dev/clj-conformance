@@ -1,10 +1,14 @@
 # Portable vector contract, revision 1
 
-**Claim.** A persistent vector represents an ordered sequence. A valid half-open subvector exposes the selected elements. An update returns the specified new sequence and leaves previously retained values observable as before. Reduction visits the elements in order. See the [Clojure data structures reference](https://clojure.org/reference/data_structures#Vectors) and the public [subvec](https://clojure.github.io/clojure/clojure.core-api.html#clojure.core/subvec), assoc, pop, nth, drop and reduce docstrings.
+A vector update should produce the requested contents without changing an earlier value. This pack checks that promise across slices and sequences of updates, including boundaries near powers of 32. It also checks that reductions visit elements in order. These histories can expose bugs that a single `assoc` or `subvec` example misses. See the [coverage matrix](../../docs/coverage.md) for participating runtimes and artifacts.
 
-**Domain.** Finite ordinary persistent vectors, small exact nonnegative indices, integer/keyword elements, eager pure reducers. Slices satisfy 0 ≤ start ≤ end ≤ count. Set/pop commands on an empty vector leave the trace state unchanged and make no invalid call. Sizes beside powers of 32 guide exploration; a runtime may implement these vectors with any branching factor. The expected contents are derived independently with list/sequence operations. The oracle still relies on each host's basic sequence operations and equality; cross-host agreement is additional evidence, not a proof.
+| Interaction | What could go wrong? |
+| --- | --- |
+| Slice, then replace the first or last element | An update through a slice could write to the wrong position in the backing vector. |
+| Grow or shrink near sizes 32 and 1,024 | The last element, count, or traversal order could change at a size boundary. |
+| Keep an earlier vector and continue editing | A later operation could change an already returned value. The test revisits every saved snapshot. |
 
-**Observation.** Check count, ordered contents, indexed last-element lookup (including the empty default), reduction order, dropped prefix, and all retained snapshots after each command. The contract ignores concrete type, transient optimizations, identity, chunking, allocation, printer format and exception messages. Primitive vectors, Java interop, invalid indices and performance require separate capability or characterization packs.
+After every operation the runner compares the vector with a sequence model, including indexed reads, prefix removal, and reduction order. Inputs use finite vectors, integer or keyword elements, valid slices, and small nonnegative indices. Empty-vector commands avoid invalid calls. The checks make no assumptions about branching factor, chunking or allocation. [Vector reference](https://clojure.org/reference/data_structures#Vectors) · [Subvector contract](https://clojure.github.io/clojure/clojure.core-api.html#clojure.core/subvec)
 
 **Admission rule for new properties.** Record a public contract or a derivation from one, the input domain, what each participating host claims to support, the observable result and independent oracle. Each host must pass explicit boundary witnesses. Keep unsupported features visible as capability gaps; give undocumented behavior and version-specific expectations their own labeled characterization tests. If runtimes disagree, check the domain and oracle before attributing a bug. A newly observed consensus alone cannot establish portability.
 

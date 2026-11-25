@@ -1,0 +1,5 @@
+# Derivative runtime cases
+
+The [common portable cases](common.cljc) exercise nested lookup and defaults, rebinding one sibling across a loop, and `merge-with` callback arguments when values are absent, nil, false or numeric. They also record the order in which destructuring evaluates an input and its default. These combinations catch problems that isolated feature tests can miss: a stale loop binding can leak a previous iteration's value, and evaluation order can change which side effect or exception a caller observes. See the [1.13 defect examples](../../docs/clojure-1.13-defects.md) for similar interactions.
+
+CI runs these cases on jank (with lazy and eager JIT compilation) and ClojureCLR. The CLR lanes also replay vector fixtures and generated recipes. Build identities and results are saved with the run; see the [coverage matrix](../../docs/coverage.md) for the current lanes and artifacts. Upstream installation and distributions: [jank](https://jank-lang.org/installation/) and [ClojureCLR](https://www.nuget.org/packages/Clojure.Main).
