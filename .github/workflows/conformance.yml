@@ -60,6 +60,7 @@ jobs:
           jar=$(find "$CLOJURE_INSTALL_DIR" -name clojure-tools-1.12.3.1577.jar -print -quit)
           test -f "$jar"
           PILOT_CLOJURE_JAR="$jar" bash pilot/compare.sh
+          jolt -Scp packs/clojure-1.13 packs/clojure-1.13/siblings.clj "$GITHUB_RUN_ID" --probe
           bash packs/vector/run.sh jolt -Scp packs/vector
           bash packs/vector/run.sh java -cp "$jar" clojure.main
 
@@ -138,6 +139,7 @@ jobs:
           export PILOT_CLOJURE_JAR=$(find "$CLOJURE_INSTALL_DIR" -name clojure-tools-1.12.3.1577.jar -print -quit)
           test -f "$PILOT_CLOJURE_JAR"
           JOLT="$RUNNER_TEMP/nightly/jolt" bash pilot/compare.sh 2>&1 | tee target/nightly/comparison.log
+          "$RUNNER_TEMP/nightly/jolt" -Scp packs/clojure-1.13 packs/clojure-1.13/siblings.clj "$GITHUB_RUN_ID" --probe 2>&1 | tee target/nightly/siblings.log
           bash packs/vector/run.sh "$RUNNER_TEMP/nightly/jolt" -Scp packs/vector
         shell: bash
       - uses: actions/upload-artifact@v4

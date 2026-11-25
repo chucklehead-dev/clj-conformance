@@ -53,3 +53,16 @@ clojure -Srepro -Sdeps '{:deps {org.clojure/clojure {:mvn/version "1.13.0-alpha1
 ```
 
 The mixed runner generates one nested child per layer. It covers ordinary map-to-sequence bindings and checked scalar siblings. Alpha11's binding spec accepts a local symbol or a map binding as the binding inside `:req!`; a vector binding directly inside `:req!` is outside this grammar. Both swarms report replayable failures. Automated shrinking and invalid-form generation remain open.
+
+## Sibling isolation and failure reduction
+
+The sibling runner binds two independent branches with the same source keys to distinct locals. Each seed produces 32 bindings. Each binding runs in fn, let and loop against a 13-state history. Each transition changes one branch, covering removal of an ID, a present nil ID, a truncated vector, a nil branch, an absent branch, and restoration. A model checks both branches and the outer missing-key report. The isolation property also compares the unaffected branch's observed locals and inner missing-key report across the transition.
+
+For a value mismatch, the runner removes input states, branches, directives and nested input data while requiring the same context, property, side and field to fail. The reduced form and ordered inputs appear in the job log alongside the original seed and trial. The reducer finds a locally irreducible case under its transformations. Compile and execution exceptions retain the original replay data. Reduction currently applies to the sibling runner.
+
+The JVM candidate exercises every feature family. Stable and nightly Jolt probe required renamed locals and required nested map bindings with missing-key collection. Each probe must either return the expected results or explicitly reject the directive. The runner continues with ordinary mixed bindings when both probes report unsupported. To replay, run the same revision and runtime with the recorded seed:
+
+```sh
+clojure -Srepro -Sdeps '{:deps {org.clojure/clojure {:mvn/version "1.13.0-alpha11"}}}' -M packs/clojure-1.13/siblings.clj 13011
+jolt -Scp packs/clojure-1.13 packs/clojure-1.13/siblings.clj 13011 --probe
+```
