@@ -1,0 +1,113 @@
+{:schema 1
+ :cases
+ [{:id :jolt/core-async-parking-transducer
+   :script "regressions/jolt/cases/core_async_parking_transducer.clj"
+   :issue "https://github.com/chucklehead-dev/jolt-aspect-packs/issues/21"
+   :bad-sha "6b8b2ed70594dc5b09f91eb5de5e01fc6fdf1557"
+   :fixed-sha "0626dede387461fc0b8d53fd44a83a4c937a967f"
+   :timeout-ms 15000
+   :expected {:pass "REGRESSION PASS issue-21"
+              :fail "REGRESSION FAIL issue-21"}
+   :provenance
+   {:aspect {:runtime-required? false
+             :status :portable-public-api-extraction}
+    :hegel {:runtime-required? false
+            :status :deterministic-bounded-fiber-witness}
+    :checker {:source :park-lock-census
+              :status :independently-runnable}}}
+
+  {:id :jolt/atomic-reference-cas-identity
+   :script "regressions/jolt/cases/atomic_reference_cas_identity.clj"
+   :issue "https://github.com/chucklehead-dev/jolt-aspect-packs/issues/23"
+   :bad-sha "6595356b50e53ff930ff3431c7cb17c0f1d454da"
+   :fixed-sha "545d839accb60bed28cd801906daea153772dfb1"
+   :timeout-ms 15000
+   :expected {:pass "REGRESSION PASS issue-23"
+              :fail "REGRESSION FAIL issue-23"}
+   :provenance
+   {:aspect {:runtime-required? false
+             :status :portable-public-api-extraction}
+    :hegel {:runtime-required? false
+            :status :deterministic-minimized-witness}
+    :checker {:source :park-lock-census
+              :status :independently-runnable}}}
+
+  {:id :jolt/files-exclusive-create
+   :script "regressions/jolt/cases/files_exclusive_create.clj"
+   :issue "https://github.com/chucklehead-dev/jolt-aspect-packs/issues/31"
+   :bad-sha "6595356b50e53ff930ff3431c7cb17c0f1d454da"
+   :fixed-sha "1b33ebf025e6ad8517f48f2ace05db19fa6fce94"
+   :timeout-ms 15000
+   :expected {:pass "REGRESSION PASS issue-31"
+              :fail "REGRESSION FAIL issue-31"}
+   :provenance
+   {:aspect {:runtime-required? false
+             :status :portable-public-api-extraction}
+    :hegel {:runtime-required? false
+            :status :deterministic-boundary-witness}
+    :checker {:source :native-error-contract-review
+              :status :independently-runnable}}}
+
+  {:id :jolt/files-create-directories-existing-file
+   :script "regressions/jolt/cases/files_create_directories_existing_file.clj"
+   :issue "https://github.com/chucklehead-dev/jolt-aspect-packs/issues/32"
+   :bad-sha "1b33ebf025e6ad8517f48f2ace05db19fa6fce94"
+   :fixed-sha "77d35c82f2e259d8af7e1cc2f0780dc7a73c27de"
+   :timeout-ms 15000
+   :expected {:pass "REGRESSION PASS issue-32"
+              :fail "REGRESSION FAIL issue-32"}
+   :provenance
+   {:aspect {:runtime-required? false
+             :status :portable-public-api-extraction}
+    :hegel {:runtime-required? false
+            :status :minimized-from-concurrent-model}
+    :checker {:source :filesystem-race-review
+              :status :independently-runnable}}}
+
+  {:id :jolt/atomic-numeric-width
+   :script "regressions/jolt/cases/atomic_numeric_width.clj"
+   :issue "https://github.com/chucklehead-dev/jolt-aspect-packs/issues/36"
+   :bad-sha "9692f7cc57701ed657d993586b87b59a35f7fb60"
+   :fixed-sha "f2e06c23d4327351e4abb57ba0693c3f124b4b40"
+   :timeout-ms 15000
+   :expected {:pass "REGRESSION PASS issue-36"
+              :fail "REGRESSION FAIL issue-36"}
+   :provenance
+   {:aspect {:runtime-required? false
+             :status :portable-public-api-extraction}
+    :hegel {:runtime-required? false
+            :status :minimized-from-differential-property}
+    :checker {:source :jvm-oracle-comparison
+              :status :independently-runnable}}}
+
+  {:id :jolt/future-host-contract
+   :script "regressions/jolt/cases/future_host_contract.clj"
+   :issue "https://github.com/chucklehead-dev/jolt-aspect-packs/issues/46"
+   :bad-sha "33a1bfc44010c0a3dd61ba6dce8e67303ffe0cff"
+   :fixed-sha "442ce2a131ca522a7cac8ca61f68f02de464812c"
+   :timeout-ms 15000
+   :expected {:pass "REGRESSION PASS issue-46"
+              :fail "REGRESSION FAIL issue-46"}
+   :provenance
+   {:aspect {:runtime-required? false
+             :status :portable-public-api-extraction}
+    :hegel {:runtime-required? false
+            :status :deterministic-jvm-differential-witness}
+    :checker {:source :future-host-jvm-oracle
+              :status :independently-runnable}}}
+
+  {:id :jolt/core-async-alts-nil-prevalidation
+   :script "regressions/jolt/cases/core_async_alts_nil_prevalidation.clj"
+   :issue "https://github.com/chucklehead-dev/jolt-aspect-packs/issues/55"
+   :bad-sha "6b8b2ed70594dc5b09f91eb5de5e01fc6fdf1557"
+   :fixed-sha "0626dede387461fc0b8d53fd44a83a4c937a967f"
+   :timeout-ms 15000
+   :expected {:pass "REGRESSION PASS issue-55"
+              :fail "REGRESSION FAIL issue-55"}
+   :provenance
+   {:aspect {:runtime-required? false
+             :status :portable-public-api-extraction}
+    :hegel {:runtime-required? false
+            :status :deterministic-prevalidation-witness}
+    :checker {:source :alts-preflight-review
+              :status :independently-runnable}}}]}
