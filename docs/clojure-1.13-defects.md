@@ -2,9 +2,9 @@
 
 These examples reproduced on both 1.13.0-alpha10 and 1.13.0-alpha11. The first two also run on 1.12.3, which gives us a before-and-after comparison. The third concerns syntax introduced in 1.13. The version numbers here identify tested releases. The first affected release has not been established.
 
-## 1. Moving a lookup path into a local can change the value returned
+## 1. Two-argument `get-in` inlining can read the map before the path is fully evaluated
 
-A nested lookup should finish evaluating its arguments before it starts reading the map. Here the second key expression updates the map. That makes the order of operations visible without threads or timing.
+Clojure 1.13 inlines two-argument `get-in` calls when the path is written directly as a vector, such as `(get-in m [:a (change!)])`. An ordinary function call evaluates the whole vector, including `(change!)`, before looking up `:a`. The inlined code looks up `:a` first. If `change!` replaces the inner map at `:a`, the lookup continues in the old inner map and returns its old value.
 
 ```clojure
 (defn read-value [literal?]
@@ -20,7 +20,7 @@ A nested lookup should finish evaluating its arguments before it starts reading 
 
 **Expected** `[:after :after]`, as on 1.12.3. **Observed** `[:before :after]` on both tested alphas. Each call creates a fresh map.
 
-The two-argument optimization turns a vector path into successive lookups. In the literal form it reads `:a` before `change!` runs and retains the old inner map. Ordinary immutable data and constant keys hide the difference. **Workaround:** bind the path to a local before calling `get-in`. [Implementation at alpha11](https://github.com/clojure/clojure/blob/clojure-1.13.0-alpha11/src/clj/clojure/core.clj#L6403)
+Binding the path to a local, as in the second branch, makes the update happen before either lookup and gives the expected result. [Implementation at alpha11](https://github.com/clojure/clojure/blob/clojure-1.13.0-alpha11/src/clj/clojure/core.clj#L6403)
 
 ## 2. A correct result type hint can stop a loop from compiling
 
