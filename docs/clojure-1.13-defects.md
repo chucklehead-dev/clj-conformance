@@ -37,20 +37,27 @@ This loop counts down and returns a string. The hint tells the compiler the type
 
 Clojure permits `recur` where control can jump straight back to the loop. The compiler propagates the hint by wrapping the macro expansion in a call to `identity`. That puts the jump inside another function's argument. **Workaround:** remove the hint from the macro call that encloses `recur`. Our alpha11 source-loading and ahead-of-time compilation fixtures reproduce the same failure with a pass-through macro. [Compiler change at alpha11](https://github.com/clojure/clojure/blob/clojure-1.13.0-alpha11/src/jvm/clojure/lang/Compiler.java#L7590)
 
-## 3. Asking for a destructuring summary rejects a valid default
+## 3. Destructuring with `:select` or `:all` rejects a local default when the map key is `false` or `nil`
 
-Clojure maps can use `false` or `nil` as a key. In the example below, `x` is the local name for the value at key `false`. The input is empty, so `x` should receive its default of 7.
+Start with a keyword key. In the binding below, `x :price` means “look up `:price` and call its value `x`.” The input is empty, so `:or {x 7}` gives `x` the value `7`. The new `:select picked` directive also binds `picked` to a map of the selected entries, using their original keys and including defaults. [Clojure guide to associative destructuring](https://clojure.org/guides/destructuring#_associative_destructuring)
 
 ```clojure
-(let [{x false :or {x 7}} {}] x)
-;; => 7
-
-(let [{x false :or {x 7} :select view} {}] [x view])
-;; expected [7 {false 7}]
+(let [{x :price, :or {x 7}, :select picked} {}]
+  [x picked])
+;; => [7 {:price 7}]
 ```
 
-**Observed** the second form fails during macro expansion with `symbol x in :or does not refer to a binding`. Changing `false` to `nil` reproduces it. Changing it to `0` or `:k` yields the expected local and summary. The same issue affects `:all`. The input being empty keeps this example about the **key itself**.
+Change only the lookup key from `:price` to `false`, another valid Clojure map key.
 
-The implementation finds the source key for `x`, then tests that key's truthiness to decide whether the binding exists. **Workaround for this lookup:** use `(get m false 7)` and build the needed summary explicitly. That expression preserves a present nil or false value and uses 7 only when the key is absent. [Destructuring implementation at alpha11](https://github.com/clojure/clojure/blob/clojure-1.13.0-alpha11/src/clj/clojure/core.clj#L4687)
+```clojure
+(let [{x false, :or {x 7}, :select picked} {}]
+  [x picked])
+```
+
+**Expected:** `[7 {false 7}]`. The same local gets the same default. Only the key in the selected map changes.
+
+**Actual on 1.13.0-alpha10 and alpha11:** macro expansion fails with `symbol x in :or does not refer to a binding`. Dropping `:select picked` and returning `x` yields `7`. Using `nil` as the lookup key or requesting `:all` also triggers the error.
+
+The compiler finds the lookup key for `x`, then tests that key’s truthiness to decide whether `x` has a binding. Both `false` and `nil` fail that test. For this single-key example, `(let [x (get m false 7)] [x {false x}])` produces the intended result and preserves any value already present at that key. [Destructuring implementation at alpha11](https://github.com/clojure/clojure/blob/clojure-1.13.0-alpha11/src/clj/clojure/core.clj#L4687)
 
 The JVM comparison runs these [regression properties](../packs/clojure-1.13/interactions.clj) on the baseline and current candidate. [Replay instructions](../packs/clojure-1.13/README.md#compiler-and-metadata-interaction-properties)
