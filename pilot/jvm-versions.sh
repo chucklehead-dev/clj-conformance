@@ -20,9 +20,14 @@ failed=0
 for version in 1.12.3 "$candidate"; do
   deps="{:deps {org.clojure/clojure {:mvn/version \"$version\"}} :mvn/repos {\"central\" {:url \"$repo/\"}}}"
   run=(clojure -Srepro -Sdeps "$deps" -M)
+  bash packs/vector/run.sh "${run[@]}" || failed=1
   actual=$("${run[@]}" -e '(print (clojure-version))')
   test "$actual" = "$version"
   "${run[@]}" pilot/numeric.clj > "$out/$version.numeric" || failed=1
+  unset CLJ_CONFORMANCE_REVIEW
+  if [[ "$version" != 1.12.3 && -f "pilot/reviewed-$version.edn" ]]; then
+    export CLJ_CONFORMANCE_REVIEW="pilot/reviewed-$version.edn"
+  fi
   "${run[@]}" test/conformance/certify.clj --edn "$out/$version.edn" \
     --outcomes "$out/$version.rows" || failed=1
 done

@@ -1,0 +1,13 @@
+{["map / the stored key, not the probe key" "select-keys carries the source map's keys over"] [:certified :divergent "jolt-expected={:a 1} JVM-result=nil"]
+ ["map / find's accepted types" "select-keys inherits find's type check"] [:certified :divergent "jolt-expected=\"find not supported on type: clojure.lang.PersistentHashSet\" JVM-result={1 1}"]
+ ["untested / ns + REPL machinery" "ns-imports empty user"] [:certified :divergent "jolt-expected=96 JVM-result=106"]
+ ["ns / ns-imports" "a deftype adds its own class and nothing else"] [:certified :divergent "jolt-expected=[true 97] JVM-result=[true 107]"]
+ ["maps / array-map 1.13" "into {} promotes to hash at 9 entries even with keyword keys"] [:certified :divergent "jolt-expected=[:k8 :k11 :k5 :k7 :k9 :k6 :k0 :k10 :k3 :k4 :k1 :k2] JVM-result=[:k0 :k1 :k2 :k3 :k4 :k5 :k6 :k7 :k8 :k9 :k10 :k11]"]
+ ["maps / array-map 1.13" "zipmap promotes to hash at 9 entries"] [:certified :divergent "jolt-expected=[:k8 :k11 :k5 :k7 :k9 :k6 :k0 :k10 :k3 :k4 :k1 :k2] JVM-result=[:k0 :k1 :k2 :k3 :k4 :k5 :k6 :k7 :k8 :k9 :k10 :k11]"]
+ ["maps / array-map 1.13" "into {} of 9 keyword pairs is a PersistentHashMap"] [:certified :divergent "jolt-expected=true JVM-result=false"]
+ ["maps / array-map 1.13" "transient assoc! promotes at capacity regardless of key type"] [:certified :divergent "jolt-expected=[:k8 :k11 :k5 :k7 :k9 :k6 :k0 :k10 :k3 :k4 :k1 :k2] JVM-result=[:k0 :k1 :k2 :k3 :k4 :k5 :k6 :k7 :k8 :k9 :k10 :k11]"]
+ ["map / strictness (throws like Clojure)" "merge empty vector"] [:certified-throws :throws-mismatch "jolt says :throws, JVM returned {}"]
+ ["clojure.core / leaf batch 2" "merge entry pair"] [:certified :jvm-raises "jolt-expected=\"{:a 1, :b 2}\" JVM raised IllegalArgumentException: Don't know how to create ISeq from: clojure.lang.Keyword"]
+ ["map / update" "merge map-entry (conj)"] [:certified :jvm-raises "jolt-expected=\"{:a 1}\" JVM raised IllegalArgumentException: Don't know how to create ISeq from: clojure.lang.Keyword"]
+ ["map / update" "merge [k v] vector"] [:certified :jvm-raises "jolt-expected=\"{:foo 1}\" JVM raised IllegalArgumentException: Don't know how to create ISeq from: clojure.lang.Keyword"]
+ ["map / strictness (throws like Clojure)" "merge [k v] ok"] [:certified :jvm-raises "jolt-expected=\"{:foo 1}\" JVM raised IllegalArgumentException: Don't know how to create ISeq from: clojure.lang.Keyword"]}

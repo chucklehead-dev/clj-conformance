@@ -14,12 +14,39 @@ permissions:
   contents: read
 
 jobs:
-  pilot:
-    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'pilot'
+  recipes:
+    if: github.event_name == 'schedule' || inputs.suite != 'corpus'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: chucklehead-dev/jolt-hegel/.github/actions/setup-jolt@83740a1124011f3e10b2bb822ffadc1c9996cb58
+        with:
+          version: '0.8.30'
+          asset: jolt-v0.8.30-x86_64-linux.tar.gz
+          sha256: c9eb00ce9b58e6ab19dcfc324edad2ad5127bab7339e8d018ce2c30876037bdd
+      - name: Generate shared vector recipes
+        working-directory: packs/vector/generation
+        run: |
+          jolt -m hegel.install setup
+          jolt generate.clj "$RUNNER_TEMP/recipes.edn" "$GITHUB_RUN_ID"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vector-recipes
+          path: ${{ runner.temp }}/recipes.edn
+  pilot:
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'pilot'
+    needs: recipes
+    env:
+      VECTOR_RECIPES: target/vector/recipes.edn
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/download-artifact@v4
+        with:
+          name: vector-recipes
+          path: target/vector
       - uses: DeLaGuardo/setup-clojure@6d46099eae24853c33c0482f2bb54edf4f1a4c74
         with:
           cli: 1.12.3.1577
@@ -33,6 +60,8 @@ jobs:
           jar=$(find "$CLOJURE_INSTALL_DIR" -name clojure-tools-1.12.3.1577.jar -print -quit)
           test -f "$jar"
           PILOT_CLOJURE_JAR="$jar" bash pilot/compare.sh
+          bash packs/vector/run.sh jolt -Scp packs/vector
+          bash packs/vector/run.sh java -cp "$jar" clojure.main
 
   corpus:
     if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'corpus'
@@ -53,10 +82,17 @@ jobs:
 
   jvm-versions:
     if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'jvm-versions'
+    needs: recipes
+    env:
+      VECTOR_RECIPES: target/vector/recipes.edn
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/download-artifact@v4
+        with:
+          name: vector-recipes
+          path: target/vector
       - uses: DeLaGuardo/setup-clojure@6d46099eae24853c33c0482f2bb54edf4f1a4c74
         with:
           cli: 1.12.3.1577
@@ -69,10 +105,17 @@ jobs:
 
   jolt-nightly:
     if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'jolt-nightly'
+    needs: recipes
+    env:
+      VECTOR_RECIPES: target/vector/recipes.edn
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/download-artifact@v4
+        with:
+          name: vector-recipes
+          path: target/vector
       - uses: DeLaGuardo/setup-clojure@6d46099eae24853c33c0482f2bb54edf4f1a4c74
         with:
           cli: 1.12.3.1577
@@ -95,6 +138,7 @@ jobs:
           export PILOT_CLOJURE_JAR=$(find "$CLOJURE_INSTALL_DIR" -name clojure-tools-1.12.3.1577.jar -print -quit)
           test -f "$PILOT_CLOJURE_JAR"
           JOLT="$RUNNER_TEMP/nightly/jolt" bash pilot/compare.sh 2>&1 | tee target/nightly/comparison.log
+          bash packs/vector/run.sh "$RUNNER_TEMP/nightly/jolt" -Scp packs/vector
         shell: bash
       - uses: actions/upload-artifact@v4
         if: always()

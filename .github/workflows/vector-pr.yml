@@ -1,0 +1,14 @@
+name: Portable vector fixtures
+on: pull_request
+permissions:
+  contents: read
+jobs:
+  fixed:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: DeLaGuardo/setup-clojure@6d46099eae24853c33c0482f2bb54edf4f1a4c74
+        with:
+          cli: 1.12.3.1577
+      - run: bash packs/vector/run.sh clojure -M

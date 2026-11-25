@@ -455,13 +455,25 @@
         documented-problems (vec (concat (check-legend) (check-documented)))
         corpus (edn/read-string (slurp corpus-path))
         results (mapv (fn [row] (assoc (classify row) :row row)) corpus)
+        review-path (System/getenv "CLJ_CONFORMANCE_REVIEW")
+        reviewed (if review-path (edn/read-string (slurp review-path)) {})
+        _ (when review-path
+            (assert (= (str "pilot/reviewed-" (clojure-version) ".edn") review-path)))
+        matched (into {} (keep (fn [{:keys [row bucket detail]}]
+                                 (let [k [(:suite row) (:label row)]
+                                       [baseline target outcome] (get reviewed k)]
+                                   (when (and baseline (= target bucket) (= outcome detail))
+                                     [k baseline]))) results))
+        _ (when-not (= (set (keys matched)) (set (keys reviewed)))
+            (throw (ex-info "Reviewed outcome changed or disappeared"
+                            {:rows (remove matched (keys reviewed))})))
         by (group-by :bucket results)
         n (count results)
         cnt #(count (get by % []))]
     (when-let [path (second (drop-while #(not= "--outcomes" %) *command-line-args*))]
       (spit path (with-out-str
                    (doseq [{:keys [row bucket reason]} results]
-                     (prn [(:suite row) (:label row) bucket reason])))))
+                     (prn [(:suite row) (:label row) (get matched [(:suite row) (:label row)] bucket) reason])))))
     (println (format "Certifying %d corpus rows against JVM Clojure %s\n" n (clojure-version)))
     (println (format "  certified        %5d  (jolt expected == JVM)" (cnt :certified)))
     (println (format "  certified-throws %5d  (:throws, JVM also throws)" (cnt :certified-throws)))
@@ -508,7 +520,7 @@
     ;; Partition the rows the JVM has an opinion on into known (allowlisted) vs NEW.
     (let [flagged (concat (get by :divergent []) (get by :throws-mismatch []) (get by :jvm-raises []))
           key-of (fn [{:keys [row]}] [(:suite row) (:label row)])
-          new? (fn [r] (let [k (key-of r)] (and (not (known k)) (not (flaky k)))))
+          new? (fn [r] (let [k (key-of r)] (and (not (known k)) (not (flaky k)) (not (matched k)))))
           news (filter new? flagged)
           flagged-keys (set (map key-of flagged))
           ;; Rows the oracle had no opinion on: it never ran them to a value, so

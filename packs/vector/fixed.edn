@@ -1,0 +1,8 @@
+[[0 [:push :set-first :pop]]
+ [1 [:tail :push]]
+ [31 [:push :push :tail :set-last]]
+ [32 [:head :head :set-first]]
+ [33 [:tail :tail :set-first :pop]]
+ [1023 [:push :push :pop :pop]]
+ [1024 [:tail :head :set-last]]
+ [1025 [:pop :tail :set-first]]]
