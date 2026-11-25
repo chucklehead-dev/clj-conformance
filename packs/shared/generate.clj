@@ -2,6 +2,8 @@
 (load-file "packs/clojure-1.13/siblings.clj")
 (require '[conformance.sibling-destructuring :as siblings])
 
+(load-file "packs/shared/conformance/partition.cljc")
+
 (defn sibling-case [recipe inputs context]
   {:recipe recipe :inputs inputs :form (siblings/runner-form recipe context)
    :context context :expected (mapv #(siblings/model recipe %) inputs)
@@ -54,4 +56,4 @@
                     default [nil false :absent]]
                 (get-in-case context m default))]
   (spit (nth *command-line-args* 2)
-        (pr-str {:seed siblings/seed :cases (vec (concat (apply concat bindings) lookups))})))
+        (pr-str {:seed siblings/seed :cases (vec (concat (apply concat bindings) lookups (conformance.partition/cases)))})))

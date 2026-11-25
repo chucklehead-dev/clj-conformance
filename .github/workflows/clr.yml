@@ -62,6 +62,11 @@ jobs:
         run: |
           Clojure.Main packs/derivatives/common.cljc 2>&1 | tee "$OUT/common.log"
           grep -Fxq 'DERIVATIVE-CHECKS-PASSED' "$OUT/common.log"
+      - name: Replay selected and unused key cases
+        shell: bash
+        run: |
+          Clojure.Main packs/derivatives/partition.cljc 2>&1 | tee "$OUT/partition.log"
+          grep -Fxq 'PARTITION-REPLAY-PASSED' "$OUT/partition.log"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

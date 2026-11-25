@@ -1,9 +1,12 @@
 (ns conformance.shared-compare
   (:require [clojure.edn :as edn] [clojure.java.io :as io] [clojure.string :as str]))
 
+(load-file "packs/shared/conformance/partition.cljc")
+
 (defn fields [{:keys [family expected]}]
-  (if (= :get-in (first family))
-    [[0] [1]]
+  (case (first family)
+    :get-in [[0] [1]]
+    :partition [[0] [1 :select] [1 :excess] [2]]
     (into [[:outer]] (for [[side obs] (first expected) :when (map? obs)
                            :when (not= :outer side) field (keys obs)] [side field]))))
 
@@ -26,11 +29,20 @@
                         [[(mapv first runs) row :model {:values (:expected c)}]])
                       pairs)]
     (for [[a x b y] comparisons path (differences c x y)]
-      {:key [(:family c) a b path] :case i :a x :b y})))
+      (let [involved (if agreed? runs [[a x] [b y]])
+            characterized? (and (= :partition (first (:family c)))
+                                (every? (fn [[runtime result]]
+                                          (or (= {:values (:expected c)} result)
+                                              (= (conformance.partition/characterized (:family c) runtime)
+                                                 result)))
+                                        involved))]
+        {:key [(:family c) a b path] :case i :a x :b y
+         :status (if characterized? :characterized :unexpected)}))))
 
 (defn case-group [{:keys [family requires]}]
-  (if (= :get-in (first family))
-    :lookup
+  (case (first family)
+    :partition :partition
+    :get-in :lookup
     (if (seq requires) :required :ordinary)))
 
 (defn coverage-table [seed cases reports]
@@ -45,13 +57,13 @@
                                              :else :differ)))]
                          (str/join " / " (map #(get counts % 0) [:pass :skip :differ]))))
                 label (if (str/starts-with? runtime "jvm-") (str runtime " " build) runtime)]
-            (str "| " label " | " (cell :lookup) " | " (cell :ordinary) " | " (cell :required) " |")))]
+            (str "| " label " | " (cell :lookup) " | " (cell :ordinary) " | " (cell :required) " | " (cell :partition) " |")))]
     (str/join "\n"
               (concat ["## Shared property results" ""
                        (str "Seed `" seed "`. Each cell counts cases that matched the model / "
                             "skipped a required feature / differed from the model.")
-                       "" "| Worker | Nested lookup | Ordinary sibling bindings | Required sibling bindings |"
-                       "| --- | --- | --- | --- |"]
+                       "" "| Worker | Nested lookup | Ordinary sibling bindings | Required sibling bindings | Selected / unused entries |"
+                       "| --- | --- | --- | --- | --- |"]
                       lines ["" "Build identities and failures are in `comparison.edn`."]))))
 
 (let [[fixtures out & files] *command-line-args*
@@ -65,9 +77,9 @@
     (throw (ex-info "Missing, duplicate, or incompatible worker reports" {:workers names})))
   (.mkdirs dir)
   (let [all (mapcat (fn [i] (findings (cases i) reports i)) (range (count cases)))
-        grouped (group-by :key all)
+        grouped (group-by (juxt :key :status) all)
         evidence
-        (mapv (fn [n [signature hits]]
+        (mapv (fn [n [[signature _] hits]]
                 (let [best (apply min-key
                                   (fn [{:keys [case]}]
                                     (count (pr-str ((juxt :form :inputs) (cases case)))))
@@ -85,5 +97,5 @@
                  :findings evidence}]
     (spit (io/file dir "coverage.md") (coverage-table seed cases reports))
     (spit (io/file dir "comparison.edn") (pr-str summary))
-    (prn (assoc (dissoc summary :findings :workers) :workers names :findings (count evidence)))
-    (when (seq evidence) (System/exit 1))))
+    (prn (assoc (dissoc summary :findings :workers) :workers names :findings (count evidence) :statuses (frequencies (map :status evidence))))
+    (when (some #(= :unexpected (:status %)) evidence) (System/exit 1))))

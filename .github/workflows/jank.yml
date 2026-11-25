@@ -32,6 +32,8 @@ jobs:
           for mode in lazy eager; do
             jank "--$mode" run packs/derivatives/common.cljc 2>&1 | tee "target/jank-report/$mode.log"
             grep -Fxq 'DERIVATIVE-CHECKS-PASSED' "target/jank-report/$mode.log"
+            jank "--$mode" --module-path packs/shared run packs/derivatives/partition.cljc 2>&1 | tee "target/jank-report/$mode-partition.log"
+            grep -Fxq 'PARTITION-REPLAY-PASSED' "target/jank-report/$mode-partition.log"
           done
       - uses: actions/upload-artifact@v4
         if: always()
