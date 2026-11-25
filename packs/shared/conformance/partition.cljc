@@ -35,9 +35,13 @@
 (defn cases []
   (vec
    (for [[nested? default?] [[false false] [true true]]
-         shape (if nested? [:constant :prebound] [:constant :prebound :inline])
-         behavior (if (or nested? (= shape :constant)) [:same] [:same :alternate :throw-on-repeat])
+         shape [:constant :prebound :inline]
+         behavior (cond (= shape :constant) [:same]
+                        (and nested? (= shape :inline)) [:alternate]
+                        nested? [:same]
+                        :else [:same :alternate :throw-on-repeat])
          dirs [{} {:select 's} {:excess 'e} {:select 's :excess 'e}]
+         :when (or (not nested?) (not= shape :inline) (= dirs {:select 's :excess 'e}))
          :let [inputs (if nested?
                         (mapv (fn [branch] {:branch branch :outer 30})
                               [{:a 10 :b 20} {:a nil :b 20} {:a false} {:b 20} {}])
@@ -50,8 +54,14 @@
 ;; Exact alternate observations reproduced by JVM alpha11 and Babashka. Keep
 ;; these visible alongside the single-evaluation model pending contract review.
 (defn characterized [[_ shape behavior nested? dirs] runtime]
-  (when (and (= shape :inline) (not nested?) (seq dirs))
+  (when (and (= shape :inline) (seq dirs))
     (cond
+      nested?
+      {:values [[10 {:select {:branch {:a 10}} :excess {:outer 30 :branch {:a 10}}} 4]
+                [nil {:select {:branch {:a nil}} :excess {:outer 30 :branch {:a nil}}} 4]
+                [false {:select {:branch {:a false}} :excess {:outer 30 :branch {:a false}}} 4]
+                [7 {:select {:branch {}} :excess {:outer 30}} 4]
+                [7 {:select {:branch {}} :excess {:outer 30}} 4]]}
       (= behavior :throw-on-repeat) {:threw :repeated-key}
       (and (#{"jolt-release" "jolt-nightly"} runtime) (= dirs [:select]))
       {:values [[10 {:select {:a 10}} 3]]}
