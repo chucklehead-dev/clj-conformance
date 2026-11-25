@@ -1,3 +1,3 @@
 {:deps {io.github.chucklehead-dev/jolt-hegel
         {:git/url "https://github.com/chucklehead-dev/jolt-hegel"
-         :git/sha "83740a1124011f3e10b2bb822ffadc1c9996cb58"}}}
+         :git/sha "1b986b8161524518dceb7e35eb56b65ffa29047a"}}}

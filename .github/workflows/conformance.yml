@@ -29,7 +29,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: chucklehead-dev/jolt-hegel/.github/actions/setup-jolt@83740a1124011f3e10b2bb822ffadc1c9996cb58
+      - uses: chucklehead-dev/jolt-hegel/.github/actions/setup-jolt@1b986b8161524518dceb7e35eb56b65ffa29047a
         with:
           version: '0.8.30'
           asset: jolt-v0.8.30-x86_64-linux.tar.gz
@@ -63,7 +63,7 @@ jobs:
       - uses: DeLaGuardo/setup-clojure@6d46099eae24853c33c0482f2bb54edf4f1a4c74
         with:
           cli: 1.12.3.1577
-      - uses: chucklehead-dev/jolt-hegel/.github/actions/setup-jolt@83740a1124011f3e10b2bb822ffadc1c9996cb58
+      - uses: chucklehead-dev/jolt-hegel/.github/actions/setup-jolt@1b986b8161524518dceb7e35eb56b65ffa29047a
         with:
           version: '0.8.30'
           asset: jolt-v0.8.30-x86_64-linux.tar.gz
