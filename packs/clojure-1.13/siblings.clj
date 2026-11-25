@@ -149,16 +149,17 @@
                     :required (and (:required supported) (or (zero? trial) (.nextBoolean rng)))
                     :default (.nextBoolean rng)}])))
 
-(dotimes [trial 32]
-  (let [r (trial-recipe trial) inputs (history r)]
-    (doseq [context [:fn :let :loop]]
-      (try
-        (when-let [report (exercise r inputs context eval)]
-          (prn (assoc report :seed seed :trial trial :version (clojure-version)))
-          (throw (ex-info "Sibling destructuring mismatch" {:context context})))
-        (catch Exception e
-          (prn {:seed seed :trial trial :context context :original-form (runner-form r context)
-                :original-inputs inputs})
-          (throw e))))))
-(prn {:seed seed :version (clojure-version) :features supported :bindings 32 :inputs-per-binding 13
-      :contexts [:fn :let :loop]})
+(when-not (= "--library" (second *command-line-args*))
+  (dotimes [trial 32]
+    (let [r (trial-recipe trial) inputs (history r)]
+      (doseq [context [:fn :let :loop]]
+        (try
+          (when-let [report (exercise r inputs context eval)]
+            (prn (assoc report :seed seed :trial trial :version (clojure-version)))
+            (throw (ex-info "Sibling destructuring mismatch" {:context context})))
+          (catch Exception e
+            (prn {:seed seed :trial trial :context context :original-form (runner-form r context)
+                  :original-inputs inputs})
+            (throw e))))))
+  (prn {:seed seed :version (clojure-version) :features supported :bindings 32 :inputs-per-binding 13
+        :contexts [:fn :let :loop]}))

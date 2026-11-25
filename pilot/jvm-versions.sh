@@ -23,6 +23,12 @@ for version in 1.12.3 "$candidate"; do
   bash packs/vector/run.sh "${run[@]}" || failed=1
   actual=$("${run[@]}" -e '(print (clojure-version))')
   test "$actual" = "$version"
+  if [[ -f target/vector/shared.edn ]]; then
+    mkdir -p target/shared
+    label=jvm-candidate
+    if [[ "$version" = 1.12.3 ]]; then label=jvm-baseline; fi
+    "${run[@]}" packs/shared/worker.clj target/vector/shared.edn "$label" "$actual" "target/shared/$label.edn" || failed=1
+  fi
   "${run[@]}" pilot/numeric.clj > "$out/$version.numeric" || failed=1
   if [[ "$version" = "$candidate" ]]; then
     "${run[@]}" packs/clojure-1.13/check.clj 2>&1 | tee "$out/$version.properties.log" || failed=1

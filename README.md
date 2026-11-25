@@ -45,3 +45,19 @@ The [Clojure 1.13 property pack](packs/clojure-1.13/README.md) exercises checked
 The daily conformance run and manual `all` selection include two independent Linux jobs. Select `babashka-release` or `babashka-dev` in the workflow's suite menu to run either individually. Release resolves the latest published release. Dev follows the upstream installer's development version pointer and downloads the corresponding published binary. Each run verifies the asset digest and records its ID, SHA-256, and the binary's own Git SHA from `bb describe`.
 
 Both channels compare numeric pilot results with JVM Clojure 1.12.3, replay the shared vector recipes, and exercise sibling isolation in fn, let and loop using per-feature probes. [Babashka installer](https://github.com/babashka/babashka/blob/master/install) · [Published development builds](https://github.com/babashka/babashka-dev-builds/releases)
+
+## Shared differential replay
+
+The recipe job writes one seeded `shared.edn` to the `vector-recipes` artifact. It contains binding recipes, compiled-as-data forms, feature requirements, ordered inputs and model predictions. Each selected build reads the same file and uploads a `shared-*` report containing its build identity, feature rejections and per-case observations. Daily and manual `all` runs compare all six builds. A single-channel run still checks its observations against the model.
+
+For sibling destructuring, each trial includes the original history and six smaller witnesses per binding context. For `get-in`, the result includes a value and an ordered trace. Both map and default expressions must run once even on a hit. With a computed path, its expression must run once between them. The domain includes missing keys, non-map intermediates and present nil and false leaves.
+
+The `shared-comparison` artifact contains `comparison.edn` and, for disagreements, standalone `repro-*.clj` programs. Run a reproducer unchanged under the two identified builds. The comparator chooses the smallest serialized witness among cases actually run on the pair that differ at the same field and binding context. This bounded reduction supplements the sibling suite's adaptive single-runtime reducer. A consensus that differs from the independent model is recorded for contract review. Rejected forms retain the rejecting feature and compiler diagnostic.
+
+For a local replay from the repo root:
+
+```sh
+clojure -M packs/shared/generate.clj 13011 --library /tmp/shared.edn
+bb packs/shared/worker.clj /tmp/shared.edn bb-release "$(bb --version)" /tmp/bb.edn
+clojure -M packs/shared/compare.clj /tmp/shared.edn /tmp/comparison /tmp/bb.edn
+```
