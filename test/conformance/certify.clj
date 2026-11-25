@@ -36,7 +36,7 @@
 ;; it were the corpus, certified its handful of rows and wrote a profile with almost
 ;; nothing left in it. Skipping a valued flag together with its argument is what
 ;; makes the documented `[corpus.edn] [--edn out.edn]` usage work in either order.
-(def valued-flags #{"--edn" "--profile"})
+(def valued-flags #{"--edn" "--profile" "--outcomes"})
 
 (defn positional-args
   "ARGS with every flag — and the argument of a value-taking flag — removed."
@@ -458,6 +458,10 @@
         by (group-by :bucket results)
         n (count results)
         cnt #(count (get by % []))]
+    (when-let [path (second (drop-while #(not= "--outcomes" %) *command-line-args*))]
+      (spit path (with-out-str
+                   (doseq [{:keys [row bucket reason]} results]
+                     (prn [(:suite row) (:label row) bucket reason])))))
     (println (format "Certifying %d corpus rows against JVM Clojure %s\n" n (clojure-version)))
     (println (format "  certified        %5d  (jolt expected == JVM)" (cnt :certified)))
     (println (format "  certified-throws %5d  (:throws, JVM also throws)" (cnt :certified-throws)))

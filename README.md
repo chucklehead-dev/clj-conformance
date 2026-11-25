@@ -3,6 +3,7 @@
 Compare Clojure implementations with reference JVM Clojure and independently stated expectations. This starter includes a small live comparison, a snapshot of Jolt's JVM certification tooling, and historical fixed/unfixed Jolt regression cases.
 
 ## First run
+The daily workflow also compares JVM Clojure 1.12.3 with the newest published 1.13.x (including alphas, betas and RCs). Select `jvm-versions` for that job alone or run `bash pilot/jvm-versions.sh`. It checks the actual loaded versions, compares numeric output and per-row corpus classifications, and archives both versioned reports and diffs. Equal classifications can still hide differences in returned values or exception details.
 
 The [Clojure conformance workflow](https://github.com/chucklehead-dev/clj-conformance/actions/workflows/conformance.yml) runs the numeric pilot and the JVM corpus in separate Linux jobs daily at 06:23 UTC. Choose **Run workflow** to run both or select one suite. From the CLI use `gh workflow run conformance.yml -f suite=all` (or `pilot`, `corpus`). The corpus job uploads its EDN report when produced, including on a failed comparison. The historical regression matrix still requires an explicit pair of Jolt builds.
 

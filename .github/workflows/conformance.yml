@@ -8,14 +8,14 @@ on:
         description: Suite to run
         type: choice
         default: all
-        options: [all, pilot, corpus]
+        options: [all, pilot, corpus, jvm-versions]
 
 permissions:
   contents: read
 
 jobs:
   pilot:
-    if: github.event_name == 'schedule' || inputs.suite != 'corpus'
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'pilot'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -35,7 +35,7 @@ jobs:
           PILOT_CLOJURE_JAR="$jar" bash pilot/compare.sh
 
   corpus:
-    if: github.event_name == 'schedule' || inputs.suite != 'pilot'
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'corpus'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -50,3 +50,19 @@ jobs:
         with:
           name: jvm-corpus-report
           path: report.edn
+
+  jvm-versions:
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'jvm-versions'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: DeLaGuardo/setup-clojure@6d46099eae24853c33c0482f2bb54edf4f1a4c74
+        with:
+          cli: 1.12.3.1577
+      - run: bash pilot/jvm-versions.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jvm-version-comparison
+          path: target/jvm-versions/
