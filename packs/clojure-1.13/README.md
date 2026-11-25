@@ -1,108 +1,61 @@
 # Clojure 1.13 language properties
 
-These tests combine language features to find failures that isolated examples can miss. For instance, adding a type hint can prevent a valid `recur` from compiling, and adding a destructuring summary can reject a valid default. The [three defect examples](../../docs/clojure-1.13-defects.md) explain the practical consequences with small programs.
+## Does legacy destructuring still work when you use the new 1.13 features?
 
-The JVM comparison runs this pack on the latest published 1.13 candidate. The contracts below reflect alpha11; later releases can change them, so check release notes before reporting a bug. Each check uses plain data as its oracle and reports the property, input, expected value and observation on failure. See the [coverage matrix](../../docs/coverage.md) for current lanes and artifacts.
+Suppose a function accepts an options map. It has always used `:keys` to read an optional retry count and `:or` to supply a default. In 1.13 the author adds a required ID with `:keys!` and asks for a map of the selected options with `:select`. Callers should still get the same retry count. The new summary should agree with the value the function actually uses.
 
-| Feature | Question the test answers |
-| --- | --- |
-| Checked keys and defaults | If a key is present with value `nil` or `false`, does it keep that value? Only an absent key should receive its default. The selected, missing and unused entries should agree with what was bound. |
-| Nested required maps | When a parent map is missing, does the caller see the right missing path and a nil local? This caught an older alpha exposing an internal Java object. |
-| Function parameters | If a function requires `:account/id`, can an unrelated `:id` accidentally satisfy the requirement? |
-| Three-argument `get-in` | Does a missing path return the caller’s fallback while a present nil or false value survives? |
-| Recursive merges | Does merging one nested branch preserve its siblings? If two leaves collide, does the combining function see the old and new values in the right order? |
-
-Run locally with the candidate Clojure CLI dependencies, including its matching core.specs.alpha.
-
-```sh
-clojure -Srepro -Sdeps '{:deps {org.clojure/clojure {:mvn/version "1.13.0-alpha11"}}}' -M packs/clojure-1.13/check.clj
+```clojure
+(let [{:keys! [id] :keys [retries] :or {retries 3}
+       :select picked :as supplied} {:id 42 :debug true}]
+  [retries picked supplied])
+;; => [3 {:id 42, :retries 3} {:id 42, :debug true}]
 ```
 
-Alpha10 is a historical negative control. On nil input its nested selector returns an additional selection of an empty card. Alpha11 returns just the missing path, as its upstream regression test specifies.
+The pack checks these properties of **existing bindings combined with required keys and summaries**:
 
-## Next properties from the changelog
+1. **A default applies only to an absent key.** In the example, omitting `:retries` gives both the local and the selected map a value of `3`. Supplying `:retries nil` or `:retries false` preserves that value in both places.
+2. **A required key can hold a falsey value.** A required function parameter accepts a present `:id` whose value is `nil` or `false`. Omitting the key raises an error. With `:missing`, destructuring can instead collect the missing key and bind the local to `nil`. The report distinguishes that case from a present key whose value happens to be `nil`.
+3. **Each summary describes the same input from a different perspective.** For the example above, `:select` includes the ID and the defaulted retry count. `:excess` would contain just `{:debug true}`. `:all` would include all three entries. The existing `:as` binding still gives the caller the original two-entry map.
+4. **Renaming a local preserves which key it reads.** If a local named `id` is bound to the required key `:acct/id`, an unrelated `:id` cannot satisfy it. Another test uses the legal map keys `false` and `nil`. Asking for a summary should still allow a default for their local. Alpha11 rejects this combination. [Example and compiler error](../../docs/clojure-1.13-defects.md#3-destructuring-with-select-or-all-rejects-a-local-default-when-the-map-key-is-false-or-nil)
+5. **A missing nested value is reported at the right path.** If `:card` and its child `:x` are required, an empty input produces a missing report of `{:card {:x nil}}`. A separate check binds the whole missing card with `:as`. The local should be `nil`; an earlier alpha exposed an internal Java object here.
+6. **Bindings stay independent across branches and loop iterations.** If two branches each contain an `:id`, removing the left ID must preserve the right local and its missing-key report. Repeating the same binding in `let`, a function parameter, and `loop` checks that `recur` reads the new input each time.
+7. **Requesting a summary should not run a default expression extra times.** The test uses a counter as the default and compares the same loop with and without `:select` and `:all`. Each summary should contain the value the local received on that iteration, and the counter should follow the same sequence in both versions of the loop.
 
-1. Extend the mixed binding swarm to cover qualified, symbol and string keys across binding contexts. Test rejection of invalid forms separately.
-2. Exercise transform-keys with injective key renames on nested maps and mixed collection values. Check an inverse round trip and an independently specified expected tree. Define collision expectations separately if the docs guarantee them.
-3. Extend the transient map histories below to hashed keys with deliberately colliding hash codes.
-4. Check Unicode tagged literals by supplying an explicit data reader and comparing tag and payload. Keep Java constructor and interop assertions in a JVM-specific pack.
+One related test **records a change in evaluation order**. If the input expression and the default both throw, JVM 1.12.3 and 1.12.7 surface the input error. Alpha11 surfaces the default error before the input runs. Computing the input in a preceding local makes all three versions surface the input error. CI reports this as an observed version difference pending contract review.
 
-The alpha9 release dropped the experimental :defaults directive. Use the current :or and :all contracts. Cross-runtime admission requires a shared documented contract, domain and observable outcome for that target. Passing this JVM pack alone supplies evidence only for the tested candidate and inputs.
+## Do lookup and merge operations preserve which values callers see?
 
-[Development changelog](https://clojure.org/releases/devchangelog) · [Upstream destructuring and selector tests at alpha11](https://github.com/clojure/clojure/blob/clojure-1.13.0-alpha11/test/clojure/test_clojure/data_structures.clj)
-
-## Recursive destructuring swarm
-
-Each CI run uses its GitHub run ID as a seed. Each of 64 trials picks a subset of key families, defaults, checked and renamed required bindings, and selector summaries. It compiles a function parameter from a tree up to four keys deep, then exercises 32 inputs including nil, empty maps, dense trees and sparse trees with nil branches. The model walks input paths to predict every local and the nested missing-key report. A second check adds an unrelated key carrying false and verifies that only the excess and augmented maps can acquire it. Summaries must contain ordinary data from the generator's domain.
-
-The first mismatch prints the generated form, seed, trial, input and observations. Replay the same revision with the recorded candidate and seed:
-
-```sh
-clojure -Srepro -Sdeps '{:deps {org.clojure/clojure {:mvn/version "1.13.0-alpha11"}}}' -M packs/clojure-1.13/swarm.clj 13011
-```
-
-Seed 13011 exercises the older alpha10 nested-required regression. This associative swarm uses unique locals.
-
-## Mixed map and sequence bindings
-
-The companion runner alternates map and sequential bindings for two to five layers, with either kind at the root. Map layers check a required sibling with `:keys!` and `:missing`, a defaulted sibling with `:or`, and an explicitly bound child. Sequential layers vary the child position, rest capture, and `:as`. Each generated form runs against 32 inputs in three contexts. The loop carries the next input through `recur`; starting and ending with nil checks that the final iteration clears earlier bindings. Inputs include lists, vectors, truncated sequences, and dense and sparse maps. The oracle predicts each observed local directly from the recipe and input.
-
-Replay with the seed from the JVM comparison artifact:
-
-```sh
-clojure -Srepro -Sdeps '{:deps {org.clojure/clojure {:mvn/version "1.13.0-alpha11"}}}' -M packs/clojure-1.13/mixed.clj 13011
-```
-
-The mixed runner generates one nested child per layer. It covers ordinary map-to-sequence bindings and checked scalar siblings. Alpha11's binding spec accepts a local symbol or a map binding as the binding inside `:req!`; a vector binding directly inside `:req!` is outside this grammar. Both swarms report replayable failures. Automated shrinking and invalid-form generation remain open.
-
-## Sibling isolation and failure reduction
-
-The sibling runner binds two independent branches with the same source keys to distinct locals. Each seed produces 32 bindings. Each binding runs in fn, let and loop against a 13-state history. Each transition changes one branch, covering removal of an ID, a present nil ID, a truncated vector, a nil branch, an absent branch, and restoration. A model checks both branches and the outer missing-key report. The isolation property also compares the unaffected branch's observed locals and inner missing-key report across the transition.
-
-For a value mismatch, the runner removes input states, branches, directives and nested input data while requiring the same context, property, side and field to fail. The reduced form and ordered inputs appear in the job log alongside the original seed and trial. The reducer finds a locally irreducible case under its transformations. Compile and execution exceptions retain the original replay data. Reduction currently applies to the sibling runner.
-
-The JVM candidate exercises every feature family. Stable and nightly Jolt probe required renamed locals and required nested map bindings with missing-key collection. Each probe must either return the expected results or explicitly reject the directive. The runner continues with ordinary mixed bindings when both probes report unsupported. To replay, run the same revision and runtime with the recorded seed:
-
-```sh
-clojure -Srepro -Sdeps '{:deps {org.clojure/clojure {:mvn/version "1.13.0-alpha11"}}}' -M packs/clojure-1.13/siblings.clj 13011
-jolt -Scp packs/clojure-1.13 packs/clojure-1.13/siblings.clj 13011 --probe
-```
+- **Inlining a nested lookup should preserve argument evaluation order.** A test calls two-argument `get-in` with a key expression that updates the map. The literal path, precomputed path, and Var call should all read the updated value. Alpha11’s inlined call can read the old one. A separate three-argument test checks that a present `nil` or `false` survives when the caller supplies a fallback. [Minimal inlining example](../../docs/clojure-1.13-defects.md#1-two-argument-get-in-inlining-can-read-the-map-before-the-path-is-fully-evaluated)
+- **Merging one branch should preserve its neighbors.** When two nested maps share a leaf, `merge-deep` takes the later value. `merge-deep-with` gives the combining function the old and new values in that order, including when either is `nil`.
+- **The construction history of a map should not change its merge result.** Build equal maps directly, by growing and deleting entries, or as sorted maps. Check that `merge-with` produces the same entries and calls its combining function once per overlapping key with the right arguments.
 
 ## Compiler and metadata interaction properties
 
-The JVM lane runs `interactions.clj` on the stable baselines and the resolved 1.13 candidate. Each version has an interactions log in the JVM comparison artifact. Replay with the logged seed:
-
-```sh
-clojure -Srepro -Sdeps '{:deps {org.clojure/clojure {:mvn/version "1.13.0-alpha11"}}}' -M packs/clojure-1.13/interactions.clj 13011
-```
-
-| Transformation | Observations |
-| --- | --- |
-| Change two-argument get-in between a literal path, precomputed path and Var call | A later path element mutates the source map. All ordinary argument expressions should finish before lookup begins. Record the value and how often the key expression ran. The three-argument checks elsewhere exercise the defaulted path. |
-| Add an accurate String or Object hint to the result of if-let, when or a pass-through macro in a loop | The program should compile, recur twice, and return the same string. |
-| Hint a local receiver for an unambiguous method, or annotate a pass-through macro invocation | Compare effect order, return value, exception data and, for the pass-through macro, reference identity and the returned vector’s existing metadata. |
-| Move the destructuring input into a preceding local, independently throwing from input and default | Record which expression ran, in what order, and which exception reached the caller. Both evaluations use a single default for an absent key. |
-| Add :select, :all or both to a destructuring loop | Compare default invocation counts against the same loop without summaries. Check each local and summary after transitions through absent, false and nil values. |
-| Merge equal maps built directly, grown then shrunk, or built as sorted maps | Compare merge-with output and the multiset of callback arguments against an independent presence model. Overlapping nil/false values occur on both sides across trials. Tagged values identify the key for each callback. |
-| Rename a source key to nil or false with a local default | Adding :select or :all should preserve the local and report the corresponding source key. Check absent, present nil, false and 4. |
-| Replace or update user metadata | Equality, hash, lookup as a key and set membership stay stable. The new value has the requested metadata and the earlier value retains its own. |
-| Grow, delete and regrow a map via transients | Replay the same history under nil, empty and populated metadata. Observe count, find, contains? and get after each operation. Freeze at checkpoints and resume through a fresh transient. Check retained snapshots after subsequent writes. Compare by contents, independently of representation. |
-
-All three JVM lanes exercise metadata propagation through into and update-vals. The 1.13 candidate additionally checks metadata across transient-to-persistent conversion for vectors, sets and maps, including map growth across both small-map thresholds. Type-hint equivalence here covers accurate reference hints and unambiguous calls. Overload selection and primitive coercion have different semantics.
-
-On 1.12.3 a direct destructuring input runs before its default. On alpha11 the default can run before the input. When both throw, the caller receives the default's exception and the input expression never runs. Prebinding the input leaves the 1.12.3 behavior intact on both tested versions. Alpha11 logs these exact four traces as `:observed-transition` pending contract review. For the separate loop-count control, both JVMs evaluated the default twice on initial loop entry, then once on each recur in the tested history. The property compares traces across summary configurations without requiring that implementation detail.
-
-The oracle records the three reproduced alpha11 defects as `:known` only for their specific inputs and observed value or compiler phase, cause class and message. The intended behavior counts as a pass on every version. Other failures, including a recurrence on a later alpha, fail the job.
-
-[Clojure metadata reference](https://clojure.org/reference/metadata) · [Development changelog](https://clojure.org/releases/devchangelog)
+- **An accurate result hint should leave a valid loop compilable.** A loop that counts down and returns a string should still work when its tail macro call is marked `^String`. Alpha11 rejects the hinted `recur`. For an unambiguous method call, the tests also compare the value, order of side effects, and exception data with and without a receiver hint. [Minimal hint example](../../docs/clojure-1.13-defects.md#2-a-correct-result-type-hint-can-stop-a-loop-from-compiling)
+- **Metadata on code and metadata on a returned value serve different purposes.** Annotating a pass-through macro call should still evaluate its argument once and return the same object with its own metadata. Changing a collection’s user metadata should preserve equality, hash, map lookup, and set membership. Earlier values should retain their original metadata.
+- **Growing and shrinking a transient map should preserve its contents.** Compare each edit against a persistent map, save snapshots, then continue editing. Check that saved values stay unchanged. The 1.13 checks also verify that converting a transient back to a persistent collection preserves its metadata.
 
 ## Source loading and ahead-of-time compilation
 
-The JVM job runs the same two fixture namespaces from source and from AOT-compiled classes. Source loading, compilation, and class loading each get a fresh JVM. The class-loading stage checks that the fixture source is absent from its classpath. It compares return values, metadata, reference identity within each run, and the order and count of observable effects against both the source run and an independent expected result. The hinted recur fixture also checks the precise alpha11 compile failure in both modes. A fixture that fails to compile has no class execution result. The JVM job archives each stage's EDN report.
+Running a namespace from source and running its compiled classes should yield the same values, metadata, object identity within a run, and effects in the same order. The AOT test uses fresh JVMs and loads the emitted classes with the fixture source absent. The hinted-tail fixture also checks that source loading and AOT compilation reproduce the same alpha11 compiler error.
+
+## Run or replay a property
+
+From the repository root, choose the script for the behavior you want to investigate. For a CI failure, use the Clojure version and seed from its JVM comparison artifact.
+
+| Script in this directory | What it exercises |
+| --- | --- |
+| [check.clj](check.clj) | Fixed combinations of required, optional, missing and extra keys, plus lookup and recursive merge cases. |
+| [swarm.clj](swarm.clj) | Generates nested map binding forms and inputs, then predicts each local and missing path. Seed `13011` reproduces the historical alpha10 nested-required regression. |
+| [mixed.clj](mixed.clj) | Alternates map and sequence bindings, including short vectors, rest capture and `:as`, across `fn`, `let` and `loop`. |
+| [siblings.clj](siblings.clj) | Changes one sibling at a time. On a value mismatch it reduces the binding and input history while preserving the failing property, side, field and context. |
+| [interactions.clj](interactions.clj) | Runs the version comparisons for defaults, inlining, compiler hints, metadata and map histories. |
 
 ```sh
-cp=$(clojure -Srepro -Sdeps '{:deps {org.clojure/clojure {:mvn/version "1.13.0-alpha11"}}}' -Spath)
-bash packs/clojure-1.13/aot/run.sh "$cp" target/aot-local
+deps='{:deps {org.clojure/clojure {:mvn/version "1.13.0-alpha11"}}}'
+clojure -Srepro -Sdeps "$deps" -M packs/clojure-1.13/check.clj
+clojure -Srepro -Sdeps "$deps" -M packs/clojure-1.13/siblings.clj 13011
+bash packs/clojure-1.13/aot/run.sh "$(clojure -Srepro -Sdeps "$deps" -Spath)" target/aot-local
 ```
 
-[Plain-language explanations and minimal examples of the three 1.13 defects](../../docs/clojure-1.13-defects.md)
+The swarm, mixed and interaction scripts take a seed in the same way as the sibling script. On Jolt, run `jolt -Scp packs/clojure-1.13 packs/clojure-1.13/siblings.clj 13011 --probe` to exercise supported bindings. CI records the three reproduced alpha11 defects as known only for their specific observations on that version. [Runtime coverage](../../docs/coverage.md) · [1.13 defect brief](../../docs/clojure-1.13-defects.md) · [Development changelog](https://clojure.org/releases/devchangelog)
